@@ -45,18 +45,15 @@ require('lazy').setup({
 
       -- Useful status updates for LSP
       -- NOTE: `opts = {}` is the same as calling `require('fidget').setup({})`
-      { 'j-hui/fidget.nvim', tag = 'legacy', opts = {} },
+      { 'j-hui/fidget.nvim',       tag = 'legacy', opts = {} },
 
       -- Additional lua configuration, makes nvim stuff amazing!
       'folke/neodev.nvim',
     },
   },
 
-  { "catppuccin/nvim", name = "catppuccin", priority = 1000 },
-
-  {'akinsho/toggleterm.nvim', version = "*", config = true},
-
-
+  { "catppuccin/nvim",         name = "catppuccin", priority = 1000 },
+  { 'akinsho/toggleterm.nvim', version = "*",       config = true },
 
   {
     -- Autocompletion
@@ -76,7 +73,7 @@ require('lazy').setup({
 
   {
     "zbirenbaum/copilot-cmp",
-    config = function ()
+    config = function()
       require("copilot_cmp").setup()
     end
   },
@@ -96,7 +93,8 @@ require('lazy').setup({
         changedelete = { text = '~' },
       },
       on_attach = function(bufnr)
-        vim.keymap.set('n', '<leader>gp', require('gitsigns').prev_hunk, { buffer = bufnr, desc = '[G]o to [P]revious Hunk' })
+        vim.keymap.set('n', '<leader>gp', require('gitsigns').prev_hunk,
+          { buffer = bufnr, desc = '[G]o to [P]revious Hunk' })
         vim.keymap.set('n', '<leader>gn', require('gitsigns').next_hunk, { buffer = bufnr, desc = '[G]o to [N]ext Hunk' })
         vim.keymap.set('n', '<leader>ph', require('gitsigns').preview_hunk, { buffer = bufnr, desc = '[P]review [H]unk' })
       end,
@@ -129,7 +127,7 @@ require('lazy').setup({
   },
 
   -- "gc" to comment visual regions/lines
-  { 'numToStr/Comment.nvim', opts = {} },
+  { 'numToStr/Comment.nvim',         opts = {} },
 
   -- Fuzzy Finder (files, lsp, etc)
   { 'nvim-telescope/telescope.nvim', branch = '0.1.x', dependencies = { 'nvim-lua/plenary.nvim' } },
@@ -154,6 +152,129 @@ require('lazy').setup({
       'nvim-treesitter/nvim-treesitter-textobjects',
     },
     build = ':TSUpdate',
+  },
+
+  {
+    "mfussenegger/nvim-dap",
+    dependencies = {
+      "rcarriga/nvim-dap-ui",
+      "mxsdev/nvim-dap-vscode-js",
+      -- build debugger from source
+      {
+        "microsoft/vscode-js-debug",
+        version = "1.x",
+        -- build = "npm i && npm run compile vsDebugServerBundle && mv dist out"
+        build = "npm install --legacy-peer-deps && npx gulp vsDebugServerBundle && mv dist out"
+      }
+    },
+    keys = {
+      -- normal mode is default
+      { "<leader>d", function() require 'dap'.toggle_breakpoint() end },
+      { "<leader>c", function() require 'dap'.continue() end },
+      { "<C-'>",     function() require 'dap'.step_over() end },
+      { "<C-;>",     function() require 'dap'.step_into() end },
+      { "<C-:>",     function() require 'dap'.step_out() end },
+    },
+    config = function()
+      require("dap-vscode-js").setup({
+        debugger_path = vim.fn.stdpath("data") .. "/lazy/vscode-js-debug",
+        adapters = { 'pwa-node', 'pwa-chrome', 'pwa-msedge', 'node-terminal', 'pwa-extensionHost' },
+      })
+
+      -- for _, language in ipairs({ "typescript", "javascript", "svelte" }) do
+      for _, language in ipairs({ "typescript", "javascript" }) do
+        require("dap").configurations[language] = {
+          -- attach to a node process that has been started with
+          -- `--inspect` for longrunning tasks or `--inspect-brk` for short tasks
+          -- npm script -> `node --inspect-brk ./node_modules/.bin/vite dev`
+          {
+            -- use nvim-dap-vscode-js's pwa-node debug adapter
+            type = "pwa-node",
+            -- attach to an already running node process with --inspect flag
+            -- default port: 9222
+            request = "attach",
+            -- allows us to pick the process using a picker
+            processId = require 'dap.utils'.pick_process,
+            -- name of the debug action you have to select for this config
+            name = "Attach debugger to existing `node --inspect` process",
+            -- for compiled languages like TypeScript or Svelte.js
+            sourceMaps = true,
+            -- resolve source maps in nested locations while ignoring node_modules
+            resolveSourceMapLocations = {
+              "${workspaceFolder}/**",
+              "!**/node_modules/**" },
+            -- path to src in vite based projects (and most other projects as well)
+            cwd = "${workspaceFolder}/src",
+            -- we don't want to debug code inside node_modules, so skip it!
+            skipFiles = { "${workspaceFolder}/node_modules/**/*.js" },
+          },
+          {
+            type = "pwa-chrome",
+            name = "Launch Chrome to debug client",
+            request = "launch",
+            url = "http://localhost:5173",
+            sourceMaps = true,
+            protocol = "inspector",
+            port = 9222,
+            webRoot = "${workspaceFolder}/src",
+            -- skip files from vite's hmr
+            skipFiles = { "**/node_modules/**/*", "**/@vite/*", "**/src/client/*", "**/src/*" },
+          },
+          -- only if language is javascript, offer this debug action
+          language == "javascript" and {
+            -- use nvim-dap-vscode-js's pwa-node debug adapter
+            type = "pwa-node",
+            -- launch a new process to attach the debugger to
+            request = "launch",
+            -- name of the debug action you have to select for this config
+            name = "Launch file in new node process",
+            -- launch current file
+            program = "${file}",
+            cwd = "${workspaceFolder}",
+          } or nil,
+        }
+      end
+      require("dapui").setup()
+      local dap, dapui = require("dap"), require("dapui")
+      dap.listeners.after.event_initialized["dapui_config"] = function()
+        dapui.open({ reset = true })
+      end
+      dap.listeners.before.event_terminated["dapui_config"] = dapui.close
+      dap.listeners.before.event_exited["dapui_config"] = dapui.close
+    end
+  },
+
+  {
+    "mfussenegger/nvim-dap-python",
+    ft = "python",
+    dependencies = {
+      "mfussenegger/nvim-dap",
+      "rcarriga/nvim-dap-ui",
+    },
+
+
+    config = function(_, opts)
+      -- Executing the 'which' command to find the Python executable path
+      local handle = io.popen("source ~/.local/share/nvim/mason/packages/debugpy/venv/bin/activate && which python")
+      local python_path = handle:read("*a"):gsub("^%s*(.-)%s*$", "%1")
+      handle:close()
+
+      -- If Python path is found, then set up the DAP for Python
+      if python_path and python_path ~= "" then
+        require("dap-python").setup(python_path)
+      else
+        print("Python executable path not found!")
+      end
+    end,
+
+    keys = {
+      -- normal mode is default
+      { "<leader>d", function() require 'dap'.toggle_breakpoint() end },
+      { "<leader>c", function() require 'dap'.continue() end },
+      { "<C-'>",     function() require 'dap'.step_over() end },
+      { "<C-;>",     function() require 'dap'.step_into() end },
+      { "<C-:>",     function() require 'dap'.step_out() end },
+    },
   },
 
 }, {})
@@ -202,8 +323,7 @@ vim.o.termguicolors = true
 -- [[ Basic Keymaps ]]
 
 -- Keymaps for better default experience
--- See `:help vim.keymap.set()`
-vim.keymap.set({ 'n', 'v' }, '<Space>', '<Nop>', { silent = true })
+-- See `:help vim.keymap.set()` vim.keymap.set({ 'n', 'v' }, '<Space>', '<Nop>', { silent = true })
 
 -- Remap for dealing with word wrap
 vim.keymap.set('n', 'k', "v:count == 0 ? 'gk' : 'k'", { expr = true, silent = true })
@@ -219,40 +339,12 @@ vim.api.nvim_create_autocmd('TextYankPost', {
   group = highlight_group,
   pattern = '*',
 })
-
--- [[ Configure Telescope ]]
--- See `:help telescope` and `:help telescope.setup()`
-require('telescope').setup {
-  defaults = {
-    mappings = {
-      i = {
-        ['<C-u>'] = false,
-        ['<C-d>'] = false,
-      },
-    },
-  },
-}
-
+--
+--
 -- Enable telescope fzf native, if installed
 pcall(require('telescope').load_extension, 'fzf')
-
--- See `:help telescope.builtin`
-vim.keymap.set('n', '<leader>?', require('telescope.builtin').oldfiles, { desc = '[?] Find recently opened files' })
-vim.keymap.set('n', '<leader><space>', require('telescope.builtin').buffers, { desc = '[ ] Find existing buffers' })
-vim.keymap.set('n', '<leader>/', function()
-  -- You can pass additional configuration to telescope to change theme, layout, etc.
-  require('telescope.builtin').current_buffer_fuzzy_find(require('telescope.themes').get_dropdown {
-    winblend = 10,
-    previewer = false,
-  })
-end, { desc = '[/] Fuzzily search in current buffer' })
-
-vim.keymap.set('n', '<leader>gf', require('telescope.builtin').git_files, { desc = 'Search [G]it [F]iles' })
-vim.keymap.set('n', '<leader>sf', require('telescope.builtin').find_files, { desc = '[S]earch [F]iles' })
-vim.keymap.set('n', '<leader>sh', require('telescope.builtin').help_tags, { desc = '[S]earch [H]elp' })
-vim.keymap.set('n', '<leader>sw', require('telescope.builtin').grep_string, { desc = '[S]earch current [W]ord' })
-vim.keymap.set('n', '<leader>sg', require('telescope.builtin').live_grep, { desc = '[S]earch by [G]rep' })
-vim.keymap.set('n', '<leader>sd', require('telescope.builtin').diagnostics, { desc = '[S]earch [D]iagnostics' })
+--
+-- -- See `:help telescope.builtin` for more. Try to stick with official docs or vim internal help "ALMOST ALWAYS"
 
 -- [[ Configure Treesitter ]]
 -- See `:help nvim-treesitter`
@@ -261,7 +353,8 @@ require('nvim-treesitter.configs').setup {
   ensure_installed = { 'c', 'cpp', 'go', 'lua', 'python', 'rust', 'tsx', 'typescript', 'vimdoc', 'vim' },
 
   -- Autoinstall languages that are not installed. Defaults to false (but you can change for yourself!)
-  auto_install = false,
+  -- auto_install = false,
+  auto_install = true,
 
   highlight = { enable = true },
   indent = { enable = true },
@@ -462,7 +555,7 @@ cmp.setup {
     end, { 'i', 's' }),
   },
   sources = {
-    { name = 'copilot'},
+    { name = 'copilot' },
     { name = 'nvim_lsp' },
     { name = 'luasnip' },
   },
@@ -478,7 +571,7 @@ require("copilot").setup({
 local has_words_before = function()
   if vim.api.nvim_buf_get_option(0, "buftype") == "prompt" then return false end
   local line, col = unpack(vim.api.nvim_win_get_cursor(0))
-  return col ~= 0 and vim.api.nvim_buf_get_text(0, line-1, 0, line-1, col, {})[1]:match("^%s*$") == nil
+  return col ~= 0 and vim.api.nvim_buf_get_text(0, line - 1, 0, line - 1, col, {})[1]:match("^%s*$") == nil
 end
 cmp.setup({
   mapping = {
@@ -523,16 +616,16 @@ vim.cmd('set autoread')
 vim.cmd('au SwapExists * let v:swapchoice = "e"')
 
 -- restore cursor position
-vim.api.nvim_create_autocmd({"BufReadPost", "BufEnter"}, {
-    pattern = "*",
-    callback = function()
-        -- check if mark `"` exists and if it's within the range of the buffer
-        local mark = vim.fn.getpos('`"')
-        local line_count = vim.api.nvim_buf_line_count(0)
+vim.api.nvim_create_autocmd({ "BufReadPost", "BufEnter" }, {
+  pattern = "*",
+  callback = function()
+    -- check if mark `"` exists and if it's within the range of the buffer
+    local mark = vim.fn.getpos('`"')
+    local line_count = vim.api.nvim_buf_line_count(0)
 
-        if mark[1] ~= -1 and mark[2] <= line_count then
-            -- if mark `"` is valid, move the cursor to its position and scroll the window
-            vim.api.nvim_exec('silent! normal! g`"zv', false)
-        end
-    end,
+    if mark[1] ~= -1 and mark[2] <= line_count then
+      -- if mark `"` is valid, move the cursor to its position and scroll the window
+      vim.api.nvim_exec('silent! normal! g`"zv', false)
+    end
+  end,
 })
