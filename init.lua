@@ -240,8 +240,8 @@ require('lazy').setup({
       dap.listeners.after.event_initialized["dapui_config"] = function()
         dapui.open({ reset = true })
       end
-      -- dap.listeners.before.event_terminated["dapui_config"] = dapui.close
-      -- dap.listeners.before.event_exited["dapui_config"] = dapui.close
+      dap.listeners.before.event_terminated["dapui_config"] = dapui.close
+      dap.listeners.before.event_exited["dapui_config"] = dapui.close
     end
   },
 
@@ -589,24 +589,7 @@ cmp.setup({
 
 -- Function to set colorscheme
 function SetColorScheme()
-  -- Check if the terminal is 'iTerm2'
-  if os.getenv("TERM_PROGRAM") == "iTerm.app" then
-    -- Check if the desired colorscheme exists
-    local colorscheme_exists = pcall(vim.cmd, 'colorscheme catppuccin')
-
-    -- If the colorscheme exists, set it
-    if colorscheme_exists then
-      -- print("Setting colorscheme to catppuccin")
-      vim.cmd('colorscheme catppuccin-mocha')
-    else
-      -- If the colorscheme does not exist, set to default
-      -- print("Colorscheme catppuccin not found, setting to default")
-      vim.cmd('colorscheme default')
-    end
-  else
-    -- print("Not using iTerm2, setting colorscheme to default")
-    vim.cmd('colorscheme default')
-  end
+  vim.cmd('colorscheme catppuccin-mocha')
 end
 
 -- Call the function to set the colorscheme
