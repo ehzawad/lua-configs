@@ -8,3 +8,13 @@ git clone https://github.com/ehzawad/lua-configs ~/.config/nvim
 
 
 ## Make sure to have the system installed fd ripgrep and node
+
+
+##### Linux users for the clipboard copy support
+Add this to your zshrc or bashrc or whatevs
+```
+alias pbcopy="xclip -sel clip"
+alias cpkey="pbcopy < ~/.ssh/id_rsa.pub"
+```
+
+You might have xclip installed on the system
