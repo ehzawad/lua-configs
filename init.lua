@@ -617,3 +617,6 @@ vim.api.nvim_create_autocmd({ "BufReadPost", "BufEnter" }, {
     end
   end,
 })
+
+
+vim.cmd[[autocmd InsertEnter * :set tabstop=2 shiftwidth=2 expandtab]]
