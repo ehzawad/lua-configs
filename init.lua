@@ -490,3 +490,61 @@ vim.api.nvim_create_autocmd({ "BufReadPost", "BufEnter" }, {
 })
 
 vim.cmd[[autocmd InsertEnter * :set tabstop=2 shiftwidth=2 expandtab]]
+
+-- Shift text in visual mode1
+vim.cmd([[
+  let s:save_cpo = &cpo
+  set cpo&vim
+
+  let s:pv_active = 1
+
+  function! PV_On ()
+      let s:pv_active = 1
+  endfunction
+
+  function! PV_Off ()
+      let s:pv_active = 0
+  endfunction
+
+  function PV_Toggle ()
+      let s:pv_active = !s:pv_active
+  endfunction
+
+  " When shifting, retain selection over multiple shifts...
+  silent! xmap     <unique><silent><expr>  >  <SID>ShiftKeepingSelection(">")
+  silent! xmap     <unique><silent><expr>  <  <SID>ShiftKeepingSelection("<")
+
+  " Hit <RETURN> to escape visual mode...
+  silent! xnoremap <unique><silent>        <CR>   <ESC>
+
+  " Hit ZZ to quit from within visual mode...
+  silent! xnoremap <unique><silent>        ZZ     <ESC>ZZ
+
+  " Allow selection to persist through an undo...
+  silent! xnoremap <unique><silent>        u      <ESC>ugv
+  silent! xnoremap <unique><silent>        <C-R>  <ESC><C-R>gv
+
+  function! s:ShiftKeepingSelection(cmd)
+      set nosmartindent
+
+      " No-op if plugin not active, or tab expansions are off...
+      if !s:pv_active || !&expandtab
+          return a:cmd . ":set smartindent\<CR>"
+
+      " Visual and Visual Line modes...
+      elseif mode() =~ '[vV]'
+          return a:cmd . ":set smartindent\<CR>gv"
+
+      " Visual block mode...
+      else
+          " Work out the adjustment for the way we're shifting...
+          let b:_pv_shift_motion
+          \   = &shiftwidth . (a:cmd == '>' ?  "\<RIGHT>" : "\<LEFT>")
+
+          " Return instructions to implement the shift and reset selection...
+          return a:cmd . ":set smartindent\<CR>uM"
+      endif
+  endfunction
+
+  let &cpo = s:save_cpo
+]])
