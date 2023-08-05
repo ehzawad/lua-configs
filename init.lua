@@ -435,8 +435,8 @@ cmp.setup {
     {name = 'copilot'},
     {name = 'nvim_lsp'},
     {name = 'luasnip'},
-    {name = 'buffer'},
-    {name = 'path'},
+    {name = 'buffer', min_length = 4},
+    {name = 'path', min_length = 4},
   },
 }
 
