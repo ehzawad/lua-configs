@@ -551,3 +551,183 @@ vim.cmd([[
 -- Terminal stuff
 vim.cmd([[ command! Term :botright sp | term ]])
 vim.cmd([[ command! Termvsp :vertical sp | term ]])
+
+vim.cmd([[
+" Speed up viewport scrolling
+nnoremap <C-e> 3<C-e>
+nnoremap <C-y> 3<C-y>
+
+" Magically build interim directories if necessary
+" thanks to  Author: Damian Conway
+function! AskQuit (msg, options, quit_option)
+  if confirm(a:msg, a:options) == a:quit_option
+    exit
+  endif
+endfunction
+
+function! EnsureDirExists ()
+  let required_dir = expand("%:h")
+  if !isdirectory(required_dir)
+    call AskQuit("Parent directory '" . required_dir . "' doesn't exist.",
+          \       "&Create it\nor &Quit?", 2)
+
+    try
+      call mkdir( required_dir, 'p' )
+    catch
+      call AskQuit("Can't create '" . required_dir . "'",
+            \            "&Quit\nor &Continue anyway?", 1)
+    endtry
+  endif
+endfunction
+
+augroup AutoMkdir
+  autocmd!
+  autocmd  BufNewFile  *  :call EnsureDirExists()
+augroup END
+
+
+" " Damian Conway's  Blink function
+nnoremap <silent> n n:call HLNext(0.1)<cr>
+nnoremap <silent> N N:call HLNext(0.1)<cr>
+
+function! HLNext (blinktime)
+  let target_pat = '\c\%#'.@/
+  let ring = matchadd('ErrorMsg', target_pat, 101)
+  redraw
+  exec 'sleep ' . float2nr(a:blinktime * 2000) . 'm'
+  call matchdelete(ring)
+  redraw
+endfunction
+
+" make the command mode less annoying
+" Emacs(readline) binding is here
+" start of line
+cnoremap <C-A>     <Home>
+" back one character
+cnoremap <C-B>     <Left>
+" delete character under cursor
+cnoremap <C-D>     <Del>
+" end of line
+cnoremap <C-E>     <End>
+" forward one character
+cnoremap <C-F>     <Right>
+" recall newer command-line
+cnoremap <C-N>     <Down>
+" recall previous (older) command-line
+cnoremap <C-P>     <Up>
+
+" back one word
+inoremap <expr> <C-B> getline('.')=~'^\s*$'&&col('.')>strlen(getline('.'))?"0\<Lt>C-D>\<Lt>Esc>kJs":"\<Lt>Left>"
+" delete character under cursor
+inoremap <expr> <C-D> col('.')>strlen(getline('.'))?"\<Lt>C-D>":"\<Lt>Del>"
+" end of line
+" forward one character
+inoremap <expr> <C-F> col('.')>strlen(getline('.'))?"\<Lt>C-F>":"\<Lt>Right>"
+
+
+" common type-mistakes
+ab teh the
+
+" Highlight Matched Parenthesis
+hi MatchParen ctermbg=gray guibg=lightgray
+
+" Better JUMP upwards and downwards
+inoremap <C-k> <C-g>k
+" remember, I have remapped <C-j> VIM's default Behavior
+inoremap <C-j> <C-g>j
+
+nnoremap  Y "+Y
+nnoremap  y "+yy
+xnoremap  Y "+Y
+xnoremap  y "+y
+
+
+function! HighlightAllOfWord(...)
+  if exists("a:1")
+    au CursorMoved * silent! exe printf('match Search /\<%s\>/', expand('<cword>'))
+  endif
+  if a:0 < 1
+    match none /\<%s\>/
+  endif
+endfunction
+command! -nargs=? HighlightAllOfWord  call HighlightAllOfWord(<f-args>)
+
+" MyNext() and MyPrev(): Movement between tabs OR buffers {{{
+function! MyNext()
+    if exists( '*tabpagenr' ) && tabpagenr('$') != 1
+        " Tab support && tabs open
+        normal! gt
+    else
+        " No tab support, or no tabs open
+        execute ":bnext"
+    endif
+endfunction
+command! Mynext call MyNext()
+
+function! MyPrev()
+    if exists( '*tabpagenr' ) && tabpagenr('$') != '1'
+        " Tab support && tabs open
+        normal! gT
+    else
+        " No tab support, or no tabs open
+        execute ":bprev"
+    endif
+endfunction
+command! Myprev call MyPrev()
+
+
+nnoremap gt :call MyNext()<CR>
+nnoremap gT :call MyPrev()<CR>
+
+vnoremap J :m '>+1<CR>gv=gv
+vnoremap K :m '<-2<CR>gv=gv
+
+
+" STEAL FROM reactJS creator MACVIM box
+function! s:VSplitIntoNextTab()
+  "there is only one window
+  if tabpagenr('$') == 1 && winnr('$') == 1
+    return
+  endif
+  "preparing new window
+  let l:tab_nr = tabpagenr('$')
+  let l:cur_buf = bufnr('%')
+  if tabpagenr() < tab_nr
+    close!
+    if l:tab_nr == tabpagenr('$')
+      tabnext
+    endif
+    vsp
+  else
+    close!
+    tabnew
+  endif
+  "opening current buffer in new window
+  exe "b".l:cur_buf
+endfunc
+
+
+function! s:VSplitIntoPrevTab()
+  "there is only one window
+  if tabpagenr('$') == 1 && winnr('$') == 1
+    return
+  endif
+  "preparing new window
+  let l:tab_nr = tabpagenr('$')
+  let l:cur_buf = bufnr('%')
+  if tabpagenr() != 1
+    close!
+    if l:tab_nr == tabpagenr('$')
+      tabprev
+    endif
+    vsp
+  else
+    close!
+    exe "0tabnew"
+  endif
+  "opening current buffer in new window
+  exe "b".l:cur_buf
+endfunc
+command! VSplitIntoPrevTab call s:VSplitIntoPrevTab()
+command! VSplitIntoNextTab call s:VSplitIntoNextTab()
+]])
