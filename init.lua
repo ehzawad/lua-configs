@@ -54,7 +54,6 @@ require('lazy').setup({
   },
 
   { "catppuccin/nvim",         name = "catppuccin", priority = 1000 },
-  { 'akinsho/toggleterm.nvim', version = "*",       config = true },
 
   {
     -- Autocompletion
@@ -548,3 +547,7 @@ vim.cmd([[
 
   let &cpo = s:save_cpo
 ]])
+
+-- Terminal stuff
+vim.cmd([[ command! Term :botright sp | term ]])
+vim.cmd([[ command! Termvsp :vertical sp | term ]])
