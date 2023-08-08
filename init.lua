@@ -652,33 +652,6 @@ function! HighlightAllOfWord(...)
 endfunction
 command! -nargs=? HighlightAllOfWord  call HighlightAllOfWord(<f-args>)
 
-" MyNext() and MyPrev(): Movement between tabs OR buffers {{{
-function! MyNext()
-    if exists( '*tabpagenr' ) && tabpagenr('$') != 1
-        " Tab support && tabs open
-        normal! gt
-    else
-        " No tab support, or no tabs open
-        execute ":bnext"
-    endif
-endfunction
-command! Mynext call MyNext()
-
-function! MyPrev()
-    if exists( '*tabpagenr' ) && tabpagenr('$') != '1'
-        " Tab support && tabs open
-        normal! gT
-    else
-        " No tab support, or no tabs open
-        execute ":bprev"
-    endif
-endfunction
-command! Myprev call MyPrev()
-
-
-nnoremap gt :call MyNext()<CR>
-nnoremap gT :call MyPrev()<CR>
-
 vnoremap J :m '>+1<CR>gv=gv
 vnoremap K :m '<-2<CR>gv=gv
 
