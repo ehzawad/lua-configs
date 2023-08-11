@@ -17,6 +17,11 @@ alias pbcopy="xclip -sel clip"
 alias cpkey="pbcopy < ~/.ssh/id_rsa.pub"
 ```
 
+
+```bash
+sudo apt install ripgrep fd-find
+```
+
 You might have xclip installed on the system
 
 
