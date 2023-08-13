@@ -92,3 +92,8 @@ random_ls() {
 # Alias the ls command to the random_ls function
 alias ls='random_ls'
 ```
+
+```sh
+echo "build --action_env PYTHON_BIN_PATH=\"$(brew --prefix)/bin/python3\"" >> .bazelrc
+echo "build --action_env CC=\"$(brew --prefix)/bin/clang\"" >> .bazelrc
+```
