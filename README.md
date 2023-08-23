@@ -97,3 +97,59 @@ alias ls='random_ls'
 echo "build --action_env PYTHON_BIN_PATH=\"$(brew --prefix)/bin/python3\"" >> .bazelrc
 echo "build --action_env CC=\"$(brew --prefix)/bin/clang\"" >> .bazelrc
 ```
+```sh
+
+parse_git_branch() {
+    git branch 2> /dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/ (\1)/'
+}
+export PS1="\u@\h \[\033[32m\]\w\[\033[33m\]\$(parse_git_branch)\[\033[00m\] $ "
+
+
+# source /opt/intel/openvino_2023/setupvars.sh
+
+export LD_LIBRARY_PATH=/usr/lib/clang/16.0.6/lib/linux:$LD_LIBRARY_PATH
+export CPATH=/usr/include/clang/16.0.6:$CPATH
+
+
+export CC=/usr/bin/clang
+export CXX=/usr/bin/clang++
+
+
+function copy_ssh_key() {
+  if [ -z "$1" ]; then
+    echo "Usage: copy_ssh_key username@serverip"
+    return 1
+  fi
+
+  local user_and_server="$1"
+  cat ~/.ssh/id_rsa.pub | ssh "$user_and_server" "mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys"
+  
+  if [ $? -eq 0 ]; then
+    echo "SSH key successfully copied to $user_and_server."
+  else
+    echo "Failed to copy SSH key to $user_and_server."
+    return 1
+  fi
+}
+
+
+function server40()
+{
+ssh root@192.168.10.40
+}
+
+function server77()
+{
+ssh root@192.168.10.77
+}
+
+function server41()
+{
+ssh root@192.168.1.41
+}
+
+function server44()
+{
+ssh root@192.168.10.44
+}
+```
