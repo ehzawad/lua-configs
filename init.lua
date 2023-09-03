@@ -29,6 +29,10 @@ require('lazy').setup({
   -- Git related plugins
   'tpope/vim-fugitive',
   'tpope/vim-rhubarb',
+  -- surround delimiters
+  'tpope/vim-surround',
+  -- repeat delimiters
+  'tpope/vim-repeat',
 
   -- Detect tabstop and shiftwidth automatically
   'tpope/vim-sleuth',
@@ -65,6 +69,10 @@ require('lazy').setup({
 
       -- Adds LSP completion capabilities
       'hrsh7th/cmp-nvim-lsp',
+      -- nvim-cmp source for path
+      'hrsh7th/cmp-path',
+      -- nvim-cmp source for buffer words
+      'hrsh7th/cmp-buffer',
     },
   },
 
