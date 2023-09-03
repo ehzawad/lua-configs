@@ -155,4 +155,26 @@ function server44()
 {
 ssh root@192.168.10.44
 }
+
+
+
+function parse_git_branch() {
+    git branch 2> /dev/null | sed -n -e 's/^\* \(.*\)/[\1]/p'
+}
+
+# ANSI Color Codes: Brown = 130, Crimson = 160
+COLOR_DEF=$'%f'
+COLOR_USR=$'%F{130}'  # Brown
+COLOR_DIR=$'%F{177}'  # No change, assuming you're comfortable with it
+COLOR_GIT=$'%F{197}'  # Crimson
+setopt PROMPT_SUBST
+
+export PROMPT='${COLOR_USR}%n ${COLOR_DIR}%~ ${COLOR_GIT}$(parse_git_branch)${COLOR_DEF} $ '
+
+# Or for light cyan directories
+export LSCOLORS=ExCxBxDxCxegedabagacad
+
+# Enabling colors for ls command
+alias ls='ls -G'
+
 ```
