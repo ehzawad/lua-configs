@@ -58,6 +58,7 @@ require('lazy').setup({
   },
 
   { "catppuccin/nvim",         name = "catppuccin", priority = 1000 },
+  { "simrat39/symbols-outline.nvim" },
 
   {
     -- Autocompletion
@@ -297,6 +298,7 @@ require('nvim-treesitter.configs').setup {
   },
 }
 
+require("symbols-outline").setup()
 -- Diagnostic keymaps
 vim.keymap.set('n', '[d', vim.diagnostic.goto_prev, { desc = 'Go to previous diagnostic message' })
 vim.keymap.set('n', ']d', vim.diagnostic.goto_next, { desc = 'Go to next diagnostic message' })
