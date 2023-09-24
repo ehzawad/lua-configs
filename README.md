@@ -25,6 +25,17 @@ alias cpkey="pbcopy < ~/.ssh/id_rsa.pub"
 sudo apt install ripgrep fd-find
 ```
 
+or
+```bash
+cargo install fd ripgrep
+``` 
+works both on macOS and Linux too (rusty baby)
+
+
+
+
+
+
 You might have xclip installed on the system
 
 
