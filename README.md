@@ -27,7 +27,7 @@ sudo apt install ripgrep fd-find
 
 or
 ```bash
-cargo install fd ripgrep
+cargo install fd-find ripgrep
 ``` 
 works both on macOS and Linux too (rusty baby)
 
