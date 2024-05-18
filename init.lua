@@ -1,6 +1,6 @@
 -- ehzawad@gmail.com; email me to say hi or if there are any questions
-vim.g.mapleader = ' '
-vim.g.maplocalleader = ' '
+vim.g.mapleader = ','
+vim.g.maplocalleader = ','
 
 -- Install package manager
 --    https://github.com/folke/lazy.nvim
@@ -203,7 +203,7 @@ vim.o.smartcase = true
 vim.wo.signcolumn = 'yes'
 
 -- Decrease update time
-vim.o.updatetime = 250
+-- vim.o.updatetime = 250
 vim.o.timeoutlen = 1000
 
 -- Set completeopt to have a better completion experience
@@ -750,3 +750,16 @@ function load_large_file_async(filename, chunk_size)
     on_exit = on_exit,
   })
 end
+
+-- https://github.com/f-person/git-blame.nvim
+vim.g.gitblame_display_virtual_text = 0 -- Disable virtual text
+
+local git_blame = require('gitblame')
+
+require('lualine').setup({
+  sections = {
+    lualine_c = {
+      { git_blame.get_current_blame_text, cond = git_blame.is_blame_text_available }
+    }
+  }
+})
