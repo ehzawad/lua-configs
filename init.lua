@@ -38,6 +38,15 @@ require('lazy').setup({
   'tpope/vim-sleuth',
   'zbirenbaum/copilot.lua',
 
+  {
+    'f-person/git-blame.nvim',
+    config = function()
+      vim.g.gitblame_enabled = 1
+      vim.g.gitblame_message_template = '  <author> • <date> • <summary>'
+      vim.g.gitblame_date_format = '%r'
+      vim.g.gitblame_highlight_group = 'Comment'
+    end
+  },
   -- NOTE: This is where your plugins related to LSP can be installed.
   --  The configuration is done below. Search for lspconfig to find it below.
   {
@@ -195,7 +204,7 @@ vim.wo.signcolumn = 'yes'
 
 -- Decrease update time
 vim.o.updatetime = 250
-vim.o.timeoutlen = 300
+vim.o.timeoutlen = 1000
 
 -- Set completeopt to have a better completion experience
 vim.o.completeopt = 'menu,menuone,noselect'
