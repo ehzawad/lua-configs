@@ -755,3 +755,90 @@ require('lualine').setup({
     }
   }
 })
+
+
+--- python symbolic representation using telescope
+local function python_symbols(opts)
+  opts = opts or {}
+  local bufnr = vim.api.nvim_get_current_buf()
+  local parser = vim.treesitter.get_parser(bufnr, 'python')
+  local tree = parser:parse()[1]
+  local root = tree:root()
+
+  local query = vim.treesitter.query.parse('python', [[
+    (class_definition name: (identifier) @class)
+    (function_definition name: (identifier) @function)
+    (assignment left: (identifier) @variable)
+    (import_from_statement name: (dotted_name) @import)
+    (import_statement name: (dotted_name) @import)
+  ]])
+
+  local symbols = {}
+  local positions = {}
+
+  local function get_scope(node)
+    local scope = {}
+    local parent = node:parent()
+    while parent do
+      local parent_type = parent:type()
+      if parent_type == "class_definition" then
+        table.insert(scope, 1, "Class: " .. vim.treesitter.get_node_text(parent:field("name")[1], bufnr))
+      elseif parent_type == "function_definition" then
+        table.insert(scope, 1, "Function: " .. vim.treesitter.get_node_text(parent:field("name")[1], bufnr))
+      end
+      parent = parent:parent()
+    end
+    if #scope == 0 then
+      return "Global"
+    else
+      return table.concat(scope, " > ")
+    end
+  end
+
+  for id, node in query:iter_captures(root, bufnr, 0) do
+    local name = vim.treesitter.get_node_text(node, bufnr)
+    local row, col = node:start()
+    local node_type = query.captures[id]  -- Capture name
+    local scope = get_scope(node)
+    if node_type == "import" then
+      table.insert(symbols, string.format("%s (%s) [Imported]", name, node_type))
+    else
+      table.insert(symbols, string.format("%s (%s) [%s]", name, node_type, scope))
+    end
+    table.insert(positions, {row, col})
+  end
+
+  require('telescope.pickers').new(opts, {
+    prompt_title = 'Python Symbols',
+    finder = require('telescope.finders').new_table {
+      results = symbols,
+      entry_maker = function(entry)
+        return {
+          value = entry,
+          display = entry,
+          ordinal = entry,
+          loc = table.remove(positions, 1)
+        }
+      end
+    },
+    sorter = require('telescope.config').values.generic_sorter(opts),
+    attach_mappings = function(prompt_bufnr, map)
+      local actions = require('telescope.actions')
+      local action_state = require('telescope.actions.state')
+      local function goto_location()
+        local selection = action_state.get_selected_entry()
+        actions.close(prompt_bufnr)
+        vim.api.nvim_win_set_cursor(0, {selection.loc[1] + 1, selection.loc[2]})
+        vim.cmd("normal! zz")
+      end
+      map('i', '<CR>', goto_location)
+      map('n', '<CR>', goto_location)
+      return true
+    end,
+  }):find()
+end
+
+-- Add this line to create a command for the custom picker
+vim.api.nvim_create_user_command('TelescopePythonSymbols', function()
+  python_symbols()
+end, {})
