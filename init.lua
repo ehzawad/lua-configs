@@ -757,25 +757,28 @@ require('lualine').setup({
 })
 
 
---- python symbolic representation using telescope
+-- python symbolic representation
 local function python_symbols(opts)
   opts = opts or {}
   local bufnr = vim.api.nvim_get_current_buf()
+  local file_extension = vim.fn.expand('%:e')
+  if file_extension ~= 'py' and file_extension ~= 'pyc' then
+    return
+  end
   local parser = vim.treesitter.get_parser(bufnr, 'python')
   local tree = parser:parse()[1]
   local root = tree:root()
-
   local query = vim.treesitter.query.parse('python', [[
     (class_definition name: (identifier) @class)
     (function_definition name: (identifier) @function)
+    (decorator) @decorator
     (assignment left: (identifier) @variable)
     (import_from_statement name: (dotted_name) @import)
     (import_statement name: (dotted_name) @import)
+    (parameter name: (identifier) @parameter)
   ]])
-
-  local symbols = {}
+  local symbols = {classes = {}, functions = {}, variables = {}, decorators = {}, imports = {}, parameters = {}}
   local positions = {}
-
   local function get_scope(node)
     local scope = {}
     local parent = node:parent()
@@ -794,31 +797,58 @@ local function python_symbols(opts)
       return table.concat(scope, " > ")
     end
   end
-
-  for id, node in query:iter_captures(root, bufnr, 0) do
+  local start_row, start_col, end_row, end_col = root:range()
+  for id, node in query:iter_captures(root, bufnr, start_row, end_row) do
     local name = vim.treesitter.get_node_text(node, bufnr)
     local row, col = node:start()
     local node_type = query.captures[id]  -- Capture name
     local scope = get_scope(node)
-    if node_type == "import" then
-      table.insert(symbols, string.format("%s (%s) [Imported]", name, node_type))
-    else
-      table.insert(symbols, string.format("%s (%s) [%s]", name, node_type, scope))
+    local entry = {
+      value = name,
+      display = string.format("%s [%s]", name, scope),
+      ordinal = name,
+      loc = {row, col},
+      kind = node_type
+    }
+    if node_type == "class" then
+      table.insert(symbols.classes, entry)
+    elseif node_type == "function" then
+      table.insert(symbols.functions, entry)
+    elseif node_type == "variable" then
+      table.insert(symbols.variables, entry)
+    elseif node_type == "decorator" then
+      table.insert(symbols.decorators, entry)
+    elseif node_type == "import" then
+      table.insert(symbols.imports, entry)
+    elseif node_type == "parameter" then
+      table.insert(symbols.parameters, entry)
     end
-    table.insert(positions, {row, col})
   end
-
+  local flattened_symbols = {}
+  for _, class in ipairs(symbols.classes) do
+    table.insert(flattened_symbols, class)
+  end
+  for _, decorator in ipairs(symbols.decorators) do
+    table.insert(flattened_symbols, decorator)
+  end
+  for _, func in ipairs(symbols.functions) do
+    table.insert(flattened_symbols, func)
+  end
+  for _, variable in ipairs(symbols.variables) do
+    table.insert(flattened_symbols, variable)
+  end
+  for _, import in ipairs(symbols.imports) do
+    table.insert(flattened_symbols, import)
+  end
+  for _, param in ipairs(symbols.parameters) do
+    table.insert(flattened_symbols, param)
+  end
   require('telescope.pickers').new(opts, {
     prompt_title = 'Python Symbols',
     finder = require('telescope.finders').new_table {
-      results = symbols,
+      results = flattened_symbols,
       entry_maker = function(entry)
-        return {
-          value = entry,
-          display = entry,
-          ordinal = entry,
-          loc = table.remove(positions, 1)
-        }
+        return entry
       end
     },
     sorter = require('telescope.config').values.generic_sorter(opts),
@@ -834,11 +864,11 @@ local function python_symbols(opts)
       map('i', '<CR>', goto_location)
       map('n', '<CR>', goto_location)
       return true
-    end,
+    end
   }):find()
 end
 
--- Add this line to create a command for the custom picker
-vim.api.nvim_create_user_command('TelescopePythonSymbols', function()
+vim.api.nvim_create_user_command('PythonSymbols', function()
   python_symbols()
 end, {})
+--
