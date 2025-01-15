@@ -593,6 +593,8 @@ augroup AutoMkdir
 augroup END
 
 
+" python class
+
 " " Damian Conway's  Blink function
 nnoremap <silent> n n:call HLNext(0.1)<cr>
 nnoremap <silent> N N:call HLNext(0.1)<cr>
@@ -872,3 +874,94 @@ vim.api.nvim_create_user_command('PythonSymbols', function()
   python_symbols()
 end, {})
 --
+local function find_python_class_boundaries()
+    local cursor_line = vim.api.nvim_win_get_cursor(0)[1]
+    local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+    
+    -- Find class start (searching backwards from cursor)
+    local class_start = cursor_line
+    while class_start > 0 do
+        local line = lines[class_start]
+        -- Match class definition at start of line (ignoring whitespace)
+        -- but not in comments
+        if line:match("^%s*class%s+%w+") and not line:match("^%s*#") then
+            break
+        end
+        class_start = class_start - 1
+    end
+    
+    if class_start == 0 then
+        return nil, nil
+    end
+    
+    -- Find class end 
+    local class_end = class_start
+    local base_indent = #(lines[class_start]:match("^%s*") or "")
+    
+    for i = class_start + 1, #lines do
+        local line = lines[i]
+        -- Skip empty lines and comments
+        if line:match("^%s*$") or line:match("^%s*#") then
+            class_end = i
+            goto continue
+        end
+        
+        -- Check for next class definition
+        if line:match("^%s*class%s+%w+") then
+            local indent = #(line:match("^%s*") or "")
+            if indent <= base_indent then
+                class_end = i - 1
+                break
+            end
+        end
+        
+        -- Check indentation level
+        local indent = #(line:match("^%s*") or "")
+        if not line:match("^%s*$") and indent <= base_indent and not line:match("^%s*#") then
+            class_end = i - 1
+            break
+        end
+        
+        class_end = i
+        ::continue::
+    end
+    
+    return class_start, class_end
+end
+
+-- Create the keymap
+vim.keymap.set('n', '<leader>vc', function()
+    local start_line, end_line = find_python_class_boundaries()
+    if not start_line then
+        vim.notify("No Python class found at cursor position", vim.log.levels.WARN)
+        return
+    end
+    
+    -- Move to start line and enter Visual line mode
+    vim.cmd(string.format("normal! %dGV%dG", start_line, end_line))
+    
+    -- Notify user about the correct delete command
+    vim.notify("Class selected. Press 'd' to delete or 'ESC' to cancel", vim.log.levels.INFO)
+end, {
+    desc = "Visually select Python class under cursor",
+    buffer = true
+})
+-- Optional: Add a direct delete mapping if you want both options
+vim.keymap.set('n', '<leader>dc', function()
+    local start_line, end_line = find_python_class_boundaries()
+    if not start_line then
+        vim.notify("No Python class found at cursor position", vim.log.levels.WARN)
+        return
+    end
+    
+    -- Delete the class
+    vim.api.nvim_buf_set_lines(0, start_line - 1, end_line, false, {})
+    
+    -- Position cursor at the deletion point
+    vim.api.nvim_win_set_cursor(0, {start_line, 0})
+    
+    vim.notify("Python class deleted", vim.log.levels.INFO)
+end, {
+    desc = "Delete Python class under cursor",
+    buffer = true
+})
