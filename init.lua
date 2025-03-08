@@ -359,7 +359,7 @@ end
 local servers = {
   -- clangd = {},
   -- gopls = {},
-  -- pyright = {},
+  pyright = {},  -- Python LSP enabled
   -- rust_analyzer = {},
   -- tsserver = {},
   -- html = { filetypes = { 'html', 'twig', 'hbs'} },
@@ -403,24 +403,59 @@ local luasnip = require 'luasnip'
 require('luasnip.loaders.from_vscode').lazy_load()
 luasnip.config.setup {}
 
+-- Define has_words_before function
+local has_words_before = function()
+  if vim.api.nvim_buf_get_option(0, "buftype") == "prompt" then return false end
+  local line, col = unpack(vim.api.nvim_win_get_cursor(0))
+  return col ~= 0 and vim.api.nvim_buf_get_text(0, line - 1, 0, line - 1, col, {})[1]:match("^%s*$") == nil
+end
+
+-- Copilot configuration - simple setup that works with both modes
+require("copilot").setup({
+  suggestion = {
+    enabled = true,
+    auto_trigger = true,
+    debounce = 75,
+    keymap = {
+      accept = "<Tab>",
+      accept_word = "<M-w>",
+      accept_line = "<M-l>",
+      next = "<M-]>",
+      prev = "<M-[>",
+      dismiss = "<C-]>",
+    },
+  },
+  panel = { enabled = false },
+  filetypes = {
+    python = true,
+    lua = true,
+    ["*"] = true,
+  },
+})
+
+-- Single consolidated cmp setup with explicit priorities
 cmp.setup {
+  completion = {
+    completeopt = 'menu,menuone,noselect',
+  },
+  preselect = cmp.PreselectMode.None,
   mapping = cmp.mapping.preset.insert {
     ['<C-n>'] = cmp.mapping.select_next_item(),
     ['<C-p>'] = cmp.mapping.select_prev_item(),
     ['<C-b>'] = cmp.mapping.scroll_docs(-4),
     ['<C-f>'] = cmp.mapping.scroll_docs(4),
-
+    
     ['<C-e>'] = cmp.mapping.abort(),
-    ['<C-y>'] = cmp.mapping.confirm({select = true}),
-
+    -- No <C-y> mapping to preserve scrolling
+    
     ['<C-Space>'] = cmp.mapping.complete {},
     ['<CR>'] = cmp.mapping.confirm {
       behavior = cmp.ConfirmBehavior.Replace,
       select = true,
     },
     ['<Tab>'] = cmp.mapping(function(fallback)
-      if cmp.visible() then
-        cmp.select_next_item()
+      if cmp.visible() and has_words_before() then
+        cmp.select_next_item({ behavior = cmp.SelectBehavior.Select })
       elseif luasnip.expand_or_locally_jumpable() then
         luasnip.expand_or_jump()
       else
@@ -437,37 +472,99 @@ cmp.setup {
       end
     end, { 'i', 's' }),
   },
+  -- Flat list of sources with explicit priorities
   sources = {
-    {name = 'copilot'},
-    {name = 'nvim_lsp'},
-    {name = 'luasnip'},
-    {name = 'buffer', min_length = 4},
-    {name = 'path', min_length = 4},
+    { name = 'nvim_lsp', priority = 1000 },  
+    { name = 'luasnip', priority = 900 },
+    { name = 'buffer', priority = 800, min_length = 4 },
+    { name = 'path', priority = 700, min_length = 4 },
+    { name = 'copilot', priority = 100 },  -- Much lower priority for Copilot
   },
+  sorting = {
+    -- Prioritize sources with higher priority values
+    priority_weight = 2.0,  -- Double the priority weight for more aggressive sorting
+    comparators = {
+      cmp.config.compare.priority,  -- Make priority the first comparator
+      cmp.config.compare.score,
+      cmp.config.compare.recently_used,
+      cmp.config.compare.locality,
+      cmp.config.compare.kind,
+      cmp.config.compare.exact,
+      cmp.config.compare.sort_text,
+      cmp.config.compare.length,
+      cmp.config.compare.order,
+    },
+  },
+  experimental = {
+    ghost_text = false,  -- Disable ghost text to avoid conflicts
+  },
+  view = {
+    entries = "custom"  -- Use a custom view for better visibility of source
+  }
 }
 
-require("copilot").setup({
-  suggestion = { enabled = false },
-  panel = { enabled = false },
-})
+-- Create a state variable for the toggle
+vim.g.copilot_mode = "lsp" -- "lsp" or "copilot"
 
+-- Toggle function that completely disables LSP in Copilot mode
+vim.api.nvim_create_user_command('Pilott', function()
+  if vim.g.copilot_mode == "lsp" then
+    -- Switch to Copilot-only mode - NO LSP SOURCES
+    vim.g.copilot_mode = "copilot"
+    
+    -- Setup with ONLY Copilot and basic sources, NO LSP
+    cmp.setup {
+      sources = {
+        { name = 'copilot', priority = 1000 },
+        { name = 'buffer', priority = 500, min_length = 2 },
+        { name = 'path', priority = 250, min_length = 2 },
+      },
+      -- Keep other settings the same
+    }
+    
+    -- Make sure Copilot is enabled
+    vim.cmd("Copilot enable")
+    
+    print("Copilot-only mode enabled (LSP suggestions disabled)")
+  else
+    -- Switch back to LSP-first mode with all sources
+    vim.g.copilot_mode = "lsp"
+    
+    -- Setup with LSP having highest priority and all sources restored
+    cmp.setup {
+      sources = {
+        { name = 'nvim_lsp', priority = 1000 },
+        { name = 'luasnip', priority = 900 },
+        { name = 'buffer', priority = 800, min_length = 4 },
+        { name = 'path', priority = 700, min_length = 4 },
+        { name = 'copilot', priority = 100 },
+      },
+    }
+    
+    print("LSP-first mode enabled (all completion sources active)")
+  end
+end, {})
 
-local has_words_before = function()
-  if vim.api.nvim_buf_get_option(0, "buftype") == "prompt" then return false end
-  local line, col = unpack(vim.api.nvim_win_get_cursor(0))
-  return col ~= 0 and vim.api.nvim_buf_get_text(0, line - 1, 0, line - 1, col, {})[1]:match("^%s*$") == nil
-end
-cmp.setup({
-  mapping = {
-    ["<Tab>"] = vim.schedule_wrap(function(fallback)
-      if cmp.visible() and has_words_before() then
-        cmp.select_next_item({ behavior = cmp.SelectBehavior.Select })
-      else
-        fallback()
-      end
-    end),
-  },
-})
+-- Add debug commands to check completion sources and LSP status
+vim.api.nvim_create_user_command('CompletionSources', function()
+  print("Active completion sources:")
+  for _, source in ipairs(cmp.get_config().sources) do
+    print(string.format("- %s (priority: %s)", source.name, source.priority or "not set"))
+  end
+end, {})
+
+-- Debug command to check which LSPs are attached to current buffer
+vim.api.nvim_create_user_command('LspStatus', function()
+  local clients = vim.lsp.get_active_clients({ bufnr = 0 })
+  if #clients == 0 then
+    print("No LSP clients attached to this buffer.")
+  else
+    print("LSP clients:")
+    for _, client in ipairs(clients) do
+      print(string.format("- %s", client.name))
+    end
+  end
+end, {})
 
 -- Function to set colorscheme
 function SetColorScheme()
