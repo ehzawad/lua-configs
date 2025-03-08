@@ -980,3 +980,97 @@ end
 vim.api.nvim_create_user_command('PythonSymbols', function()
   python_symbols()
 end, {})
+
+
+
+local function capture_python_node(node_type, innermost_only)
+  local bufnr = vim.api.nvim_get_current_buf()
+  
+  -- Only process Python files
+  local file_extension = vim.fn.expand('%:e')
+  if file_extension ~= 'py' and file_extension ~= 'pyc' then
+    vim.notify("Not a Python file", vim.log.levels.WARN)
+    return
+  end
+  
+  -- Get current cursor position
+  local cursor_row, cursor_col = unpack(vim.api.nvim_win_get_cursor(0))
+  cursor_row = cursor_row - 1 -- Convert to 0-indexed
+  
+  -- Get parser and tree
+  local parser = vim.treesitter.get_parser(bufnr, 'python')
+  local tree = parser:parse()[1]
+  local root = tree:root()
+  
+  -- Target node types
+  local target_type
+  if node_type == "class" then
+    target_type = "class_definition"
+  else
+    target_type = "function_definition"
+  end
+  
+  -- Find the smallest node at cursor position
+  local node_at_cursor = root:named_descendant_for_range(cursor_row, cursor_col, cursor_row, cursor_col)
+  if not node_at_cursor then
+    vim.notify("No node found at cursor position", vim.log.levels.WARN)
+    return
+  end
+  
+  -- Collect all nodes of the target type from cursor to root
+  local target_nodes = {}
+  local current_node = node_at_cursor
+  
+  while current_node do
+    if current_node:type() == target_type then
+      table.insert(target_nodes, current_node)
+    end
+    current_node = current_node:parent()
+  end
+  
+  if #target_nodes == 0 then
+    vim.notify("No " .. node_type .. " found at or containing cursor position", vim.log.levels.WARN)
+    return
+  end
+  
+  -- Select the appropriate node based on the innermost_only flag
+  local target_node
+  if innermost_only then
+    -- Take the innermost (first found from cursor)
+    target_node = target_nodes[1]
+  else
+    -- Take the outermost (last found going up to root)
+    target_node = target_nodes[#target_nodes]
+  end
+  
+  -- Get node range
+  local start_row, start_col, end_row, end_col = target_node:range()
+  
+  -- Convert to 1-indexed for Vim and select in visual mode
+  vim.api.nvim_win_set_cursor(0, {start_row + 1, start_col})
+  vim.cmd("normal! v")
+  vim.api.nvim_win_set_cursor(0, {end_row + 1, end_col})
+end
+
+-- Register commands
+vim.api.nvim_create_user_command('PythonCaptureInnerFunction', function()
+  capture_python_node("function", true)
+end, {})
+
+vim.api.nvim_create_user_command('PythonCaptureInnerClass', function()
+  capture_python_node("class", true)
+end, {})
+
+vim.api.nvim_create_user_command('PythonCaptureOuterFunction', function()
+  capture_python_node("function", false)
+end, {})
+
+vim.api.nvim_create_user_command('PythonCaptureOuterClass', function()
+  capture_python_node("class", false)
+end, {})
+
+-- Create key mappings for normal mode
+vim.api.nvim_set_keymap('n', '<leader>vif', ':PythonCaptureInnerFunction<CR>', { noremap = true, silent = true })
+vim.api.nvim_set_keymap('n', '<leader>vic', ':PythonCaptureInnerClass<CR>', { noremap = true, silent = true })
+vim.api.nvim_set_keymap('n', '<leader>vof', ':PythonCaptureOuterFunction<CR>', { noremap = true, silent = true })
+vim.api.nvim_set_keymap('n', '<leader>voc', ':PythonCaptureOuterClass<CR>', { noremap = true, silent = true })
