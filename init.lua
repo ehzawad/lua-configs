@@ -855,210 +855,139 @@ require('lualine').setup({
   }
 })
 
-
--- python symbolic representation
 local function python_symbols(opts)
   opts = opts or {}
   local bufnr = vim.api.nvim_get_current_buf()
+  
+  -- Only process Python files
   local file_extension = vim.fn.expand('%:e')
   if file_extension ~= 'py' and file_extension ~= 'pyc' then
     return
   end
+  
+  -- Get parser and tree
   local parser = vim.treesitter.get_parser(bufnr, 'python')
   local tree = parser:parse()[1]
   local root = tree:root()
+  
+  -- Simplest possible query
   local query = vim.treesitter.query.parse('python', [[
     (class_definition name: (identifier) @class)
     (function_definition name: (identifier) @function)
     (decorator) @decorator
     (assignment left: (identifier) @variable)
-    (import_from_statement name: (dotted_name) @import)
-    (import_statement name: (dotted_name) @import)
-    (parameter name: (identifier) @parameter)
   ]])
-  local symbols = {classes = {}, functions = {}, variables = {}, decorators = {}, imports = {}, parameters = {}}
-  local positions = {}
-  local function get_scope(node)
-    local scope = {}
+  
+  -- Store symbols
+  local symbols = {}
+  
+  -- Get full context hierarchy
+  local function get_full_context(node)
+    local context = {}
     local parent = node:parent()
+    
     while parent do
-      local parent_type = parent:type()
-      if parent_type == "class_definition" then
-        table.insert(scope, 1, "Class: " .. vim.treesitter.get_node_text(parent:field("name")[1], bufnr))
-      elseif parent_type == "function_definition" then
-        table.insert(scope, 1, "Function: " .. vim.treesitter.get_node_text(parent:field("name")[1], bufnr))
+      local type_str = parent:type()
+      
+      if type_str == "class_definition" then
+        for i = 0, parent:named_child_count() - 1 do
+          local child = parent:named_child(i)
+          if child:type() == "identifier" then
+            table.insert(context, 1, "Class: " .. vim.treesitter.get_node_text(child, bufnr))
+            break
+          end
+        end
+      elseif type_str == "function_definition" then
+        for i = 0, parent:named_child_count() - 1 do
+          local child = parent:named_child(i)
+          if child:type() == "identifier" then
+            table.insert(context, 1, "Function: " .. vim.treesitter.get_node_text(child, bufnr))
+            break
+          end
+        end
       end
+      
       parent = parent:parent()
     end
-    if #scope == 0 then
+    
+    if #context == 0 then
       return "Global"
     else
-      return table.concat(scope, " > ")
+      return table.concat(context, " > ")
     end
   end
-  local start_row, start_col, end_row, end_col = root:range()
+  
+  -- Capture symbols from query
+  local start_row, _, end_row, _ = root:range()
   for id, node in query:iter_captures(root, bufnr, start_row, end_row) do
     local name = vim.treesitter.get_node_text(node, bufnr)
     local row, col = node:start()
-    local node_type = query.captures[id]  -- Capture name
-    local scope = get_scope(node)
-    local entry = {
-      value = name,
-      display = string.format("%s [%s]", name, scope),
-      ordinal = name,
-      loc = {row, col},
-      kind = node_type
-    }
-    if node_type == "class" then
-      table.insert(symbols.classes, entry)
-    elseif node_type == "function" then
-      table.insert(symbols.functions, entry)
-    elseif node_type == "variable" then
-      table.insert(symbols.variables, entry)
-    elseif node_type == "decorator" then
-      table.insert(symbols.decorators, entry)
-    elseif node_type == "import" then
-      table.insert(symbols.imports, entry)
-    elseif node_type == "parameter" then
-      table.insert(symbols.parameters, entry)
+    local type_name = query.captures[id]
+    local context = get_full_context(node)
+    
+    table.insert(symbols, {
+      name = name,
+      display = name .. " [" .. context .. "] (" .. type_name .. ")",
+      row = row,
+      col = col,
+      type = type_name
+    })
+  end
+  
+  -- Sort by type and position
+  table.sort(symbols, function(a, b)
+    if a.type == b.type then
+      return a.row < b.row
+    else
+      -- Define priority with variables to avoid keyword issues
+      local a_priority = 99
+      local b_priority = 99
+      
+      if a.type == "class" then a_priority = 1
+      elseif a.type == "function" then a_priority = 2
+      elseif a.type == "decorator" then a_priority = 3
+      elseif a.type == "variable" then a_priority = 4
+      end
+      
+      if b.type == "class" then b_priority = 1
+      elseif b.type == "function" then b_priority = 2
+      elseif b.type == "decorator" then b_priority = 3
+      elseif b.type == "variable" then b_priority = 4
+      end
+      
+      return a_priority < b_priority
     end
-  end
-  local flattened_symbols = {}
-  for _, class in ipairs(symbols.classes) do
-    table.insert(flattened_symbols, class)
-  end
-  for _, decorator in ipairs(symbols.decorators) do
-    table.insert(flattened_symbols, decorator)
-  end
-  for _, func in ipairs(symbols.functions) do
-    table.insert(flattened_symbols, func)
-  end
-  for _, variable in ipairs(symbols.variables) do
-    table.insert(flattened_symbols, variable)
-  end
-  for _, import in ipairs(symbols.imports) do
-    table.insert(flattened_symbols, import)
-  end
-  for _, param in ipairs(symbols.parameters) do
-    table.insert(flattened_symbols, param)
-  end
+  end)
+  
+  -- Display in Telescope
   require('telescope.pickers').new(opts, {
     prompt_title = 'Python Symbols',
-    finder = require('telescope.finders').new_table {
-      results = flattened_symbols,
+    finder = require('telescope.finders').new_table({
+      results = symbols,
       entry_maker = function(entry)
-        return entry
+        return {
+          value = entry,
+          display = entry.display,
+          ordinal = entry.name,
+          lnum = entry.row + 1,
+          col = entry.col + 1
+        }
       end
-    },
+    }),
     sorter = require('telescope.config').values.generic_sorter(opts),
-    attach_mappings = function(prompt_bufnr, map)
-      local actions = require('telescope.actions')
-      local action_state = require('telescope.actions.state')
-      local function goto_location()
-        local selection = action_state.get_selected_entry()
-        actions.close(prompt_bufnr)
-        vim.api.nvim_win_set_cursor(0, {selection.loc[1] + 1, selection.loc[2]})
+    attach_mappings = function(prompt_bufnr)
+      require('telescope.actions').select_default:replace(function()
+        local selection = require('telescope.actions.state').get_selected_entry()
+        require('telescope.actions').close(prompt_bufnr)
+        vim.api.nvim_win_set_cursor(0, {selection.lnum, selection.col - 1})
         vim.cmd("normal! zz")
-      end
-      map('i', '<CR>', goto_location)
-      map('n', '<CR>', goto_location)
+      end)
       return true
     end
   }):find()
 end
 
+-- Create command
 vim.api.nvim_create_user_command('PythonSymbols', function()
   python_symbols()
 end, {})
---
-local function find_python_class_boundaries()
-    local cursor_line = vim.api.nvim_win_get_cursor(0)[1]
-    local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
-    
-    -- Find class start (searching backwards from cursor)
-    local class_start = cursor_line
-    while class_start > 0 do
-        local line = lines[class_start]
-        -- Match class definition at start of line (ignoring whitespace)
-        -- but not in comments
-        if line:match("^%s*class%s+%w+") and not line:match("^%s*#") then
-            break
-        end
-        class_start = class_start - 1
-    end
-    
-    if class_start == 0 then
-        return nil, nil
-    end
-    
-    -- Find class end 
-    local class_end = class_start
-    local base_indent = #(lines[class_start]:match("^%s*") or "")
-    
-    for i = class_start + 1, #lines do
-        local line = lines[i]
-        -- Skip empty lines and comments
-        if line:match("^%s*$") or line:match("^%s*#") then
-            class_end = i
-            goto continue
-        end
-        
-        -- Check for next class definition
-        if line:match("^%s*class%s+%w+") then
-            local indent = #(line:match("^%s*") or "")
-            if indent <= base_indent then
-                class_end = i - 1
-                break
-            end
-        end
-        
-        -- Check indentation level
-        local indent = #(line:match("^%s*") or "")
-        if not line:match("^%s*$") and indent <= base_indent and not line:match("^%s*#") then
-            class_end = i - 1
-            break
-        end
-        
-        class_end = i
-        ::continue::
-    end
-    
-    return class_start, class_end
-end
-
--- Create the keymap
-vim.keymap.set('n', '<leader>vc', function()
-    local start_line, end_line = find_python_class_boundaries()
-    if not start_line then
-        vim.notify("No Python class found at cursor position", vim.log.levels.WARN)
-        return
-    end
-    
-    -- Move to start line and enter Visual line mode
-    vim.cmd(string.format("normal! %dGV%dG", start_line, end_line))
-    
-    -- Notify user about the correct delete command
-    vim.notify("Class selected. Press 'd' to delete or 'ESC' to cancel", vim.log.levels.INFO)
-end, {
-    desc = "Visually select Python class under cursor",
-    buffer = true
-})
--- Optional: Add a direct delete mapping if you want both options
-vim.keymap.set('n', '<leader>dc', function()
-    local start_line, end_line = find_python_class_boundaries()
-    if not start_line then
-        vim.notify("No Python class found at cursor position", vim.log.levels.WARN)
-        return
-    end
-    
-    -- Delete the class
-    vim.api.nvim_buf_set_lines(0, start_line - 1, end_line, false, {})
-    
-    -- Position cursor at the deletion point
-    vim.api.nvim_win_set_cursor(0, {start_line, 0})
-    
-    vim.notify("Python class deleted", vim.log.levels.INFO)
-end, {
-    desc = "Delete Python class under cursor",
-    buffer = true
-})
