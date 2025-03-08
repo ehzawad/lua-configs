@@ -855,6 +855,9 @@ require('lualine').setup({
   }
 })
 
+
+
+
 local function python_symbols(opts)
   opts = opts or {}
   local bufnr = vim.api.nvim_get_current_buf()
@@ -870,115 +873,102 @@ local function python_symbols(opts)
   local tree = parser:parse()[1]
   local root = tree:root()
   
-  -- Simplest possible query
+  -- Collect all symbols
+  local symbols = {}
+  
+  -- Simple query for basic symbols
   local query = vim.treesitter.query.parse('python', [[
     (class_definition name: (identifier) @class)
     (function_definition name: (identifier) @function)
-    (decorator) @decorator
+    (decorator (identifier) @decorator)
     (assignment left: (identifier) @variable)
   ]])
   
-  -- Store symbols
-  local symbols = {}
-  
-  -- Get full context hierarchy
-  local function get_full_context(node)
-    local context = {}
+  -- Get parent context
+  local function get_context(node)
+    local result = "Global"
     local parent = node:parent()
-    
     while parent do
-      local type_str = parent:type()
-      
-      if type_str == "class_definition" then
+      if parent:type() == "class_definition" then
         for i = 0, parent:named_child_count() - 1 do
           local child = parent:named_child(i)
           if child:type() == "identifier" then
-            table.insert(context, 1, "Class: " .. vim.treesitter.get_node_text(child, bufnr))
-            break
-          end
-        end
-      elseif type_str == "function_definition" then
-        for i = 0, parent:named_child_count() - 1 do
-          local child = parent:named_child(i)
-          if child:type() == "identifier" then
-            table.insert(context, 1, "Function: " .. vim.treesitter.get_node_text(child, bufnr))
+            result = "Class: " .. vim.treesitter.get_node_text(child, bufnr)
             break
           end
         end
       end
-      
       parent = parent:parent()
     end
-    
-    if #context == 0 then
-      return "Global"
-    else
-      return table.concat(context, " > ")
-    end
+    return result
   end
   
-  -- Capture symbols from query
+  -- Capture nodes
   local start_row, _, end_row, _ = root:range()
   for id, node in query:iter_captures(root, bufnr, start_row, end_row) do
     local name = vim.treesitter.get_node_text(node, bufnr)
     local row, col = node:start()
     local type_name = query.captures[id]
-    local context = get_full_context(node)
+    local context = get_context(node)
+    
+    -- Add prefix to decorators
+    if type_name == "decorator" then
+      name = "@" .. name
+    end
     
     table.insert(symbols, {
       name = name,
-      display = name .. " [" .. context .. "] (" .. type_name .. ")",
       row = row,
       col = col,
-      type = type_name
+      type = type_name,
+      context = context
     })
   end
   
-  -- Sort by type and position
+  -- Sort symbols
   table.sort(symbols, function(a, b)
-    if a.type == b.type then
-      return a.row < b.row
+    if a.type ~= b.type then
+      if a.type == "class" then return true end
+      if b.type == "class" then return false end
+      if a.type == "decorator" then return true end
+      if b.type == "decorator" then return false end
+      if a.type == "function" then return true end
+      if b.type == "function" then return false end
+      return false
     else
-      -- Define priority with variables to avoid keyword issues
-      local a_priority = 99
-      local b_priority = 99
-      
-      if a.type == "class" then a_priority = 1
-      elseif a.type == "function" then a_priority = 2
-      elseif a.type == "decorator" then a_priority = 3
-      elseif a.type == "variable" then a_priority = 4
-      end
-      
-      if b.type == "class" then b_priority = 1
-      elseif b.type == "function" then b_priority = 2
-      elseif b.type == "decorator" then b_priority = 3
-      elseif b.type == "variable" then b_priority = 4
-      end
-      
-      return a_priority < b_priority
+      return a.row < b.row
     end
   end)
+  
+  -- Prepare display list
+  local display_symbols = {}
+  for _, symbol in ipairs(symbols) do
+    table.insert(display_symbols, {
+      value = symbol,
+      display = symbol.name .. " [" .. symbol.context .. "] (" .. symbol.type .. ")",
+      ordinal = symbol.name,
+      lnum = symbol.row + 1,
+      col = symbol.col + 1
+    })
+  end
   
   -- Display in Telescope
   require('telescope.pickers').new(opts, {
     prompt_title = 'Python Symbols',
     finder = require('telescope.finders').new_table({
-      results = symbols,
+      results = display_symbols,
       entry_maker = function(entry)
-        return {
-          value = entry,
-          display = entry.display,
-          ordinal = entry.name,
-          lnum = entry.row + 1,
-          col = entry.col + 1
-        }
+        return entry
       end
     }),
     sorter = require('telescope.config').values.generic_sorter(opts),
     attach_mappings = function(prompt_bufnr)
-      require('telescope.actions').select_default:replace(function()
-        local selection = require('telescope.actions.state').get_selected_entry()
-        require('telescope.actions').close(prompt_bufnr)
+      local actions = require('telescope.actions')
+      local action_state = require('telescope.actions.state')
+      
+      actions.select_default:replace(function()
+        local selection = action_state.get_selected_entry()
+        actions.close(prompt_bufnr)
         vim.api.nvim_win_set_cursor(0, {selection.lnum, selection.col - 1})
         vim.cmd("normal! zz")
       end)
@@ -987,7 +977,6 @@ local function python_symbols(opts)
   }):find()
 end
 
--- Create command
 vim.api.nvim_create_user_command('PythonSymbols', function()
   python_symbols()
 end, {})
