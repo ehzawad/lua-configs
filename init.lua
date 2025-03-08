@@ -652,10 +652,6 @@ vim.cmd([[
   let &cpo = s:save_cpo
 ]])
 
--- Terminal stuff
-vim.cmd([[ command! Term :botright sp | term ]])
-vim.cmd([[ command! Termvsp :vertical sp | term ]])
-
 vim.cmd([[
 " Speed up viewport scrolling
 nnoremap <C-e> 3<C-e>
@@ -1074,3 +1070,69 @@ vim.api.nvim_set_keymap('n', '<leader>vif', ':PythonCaptureInnerFunction<CR>', {
 vim.api.nvim_set_keymap('n', '<leader>vic', ':PythonCaptureInnerClass<CR>', { noremap = true, silent = true })
 vim.api.nvim_set_keymap('n', '<leader>vof', ':PythonCaptureOuterFunction<CR>', { noremap = true, silent = true })
 vim.api.nvim_set_keymap('n', '<leader>voc', ':PythonCaptureOuterClass<CR>', { noremap = true, silent = true })
+
+-- Extremely minimal terminal configuration
+-- No autocmds, no complex options, just basic commands that work
+
+-- Horizontal terminal
+vim.api.nvim_create_user_command('Termhorizontal', function(opts)
+  local size = opts.args ~= "" and opts.args or "15"
+  vim.cmd(size .. "split")
+  vim.cmd("terminal")
+  vim.cmd("startinsert")
+end, {nargs = "?"})
+
+-- Vertical terminal
+vim.api.nvim_create_user_command('Termvertical', function(opts)
+  local size = opts.args ~= "" and opts.args or "80"
+  vim.cmd(size .. "vsplit")
+  vim.cmd("terminal")
+  vim.cmd("startinsert")
+end, {nargs = "?"})
+
+-- Tab terminal
+vim.api.nvim_create_user_command('Termnew', function()
+  vim.cmd("tabnew")
+  vim.cmd("terminal")
+  vim.cmd("startinsert")
+end, {})
+
+-- Floating terminal
+vim.api.nvim_create_user_command('Termfloat', function()
+  -- Calculate dimensions
+  local width = math.floor(vim.o.columns * 0.8)
+  local height = math.floor(vim.o.lines * 0.8)
+  local row = math.floor((vim.o.lines - height) / 2)
+  local col = math.floor((vim.o.columns - width) / 2)
+  
+  -- Create empty buffer
+  local buf = vim.api.nvim_create_buf(false, true)
+  
+  -- Create window
+  local win_opts = {
+    relative = "editor",
+    width = width,
+    height = height,
+    row = row,
+    col = col,
+    style = "minimal",
+    border = "rounded"
+  }
+  local win = vim.api.nvim_open_win(buf, true, win_opts)
+  
+  -- Open terminal in buffer
+  vim.cmd("terminal")
+  vim.cmd("startinsert")
+end, {})
+
+-- Alias Term to horizontal split
+vim.api.nvim_create_user_command('Term', function(opts)
+  vim.cmd("Termhorizontal " .. opts.args)
+end, {nargs = "?"})
+
+-- Simple terminal mode mappings (without autocmd)
+vim.keymap.set('t', '<Esc>', '<C-\\><C-n>')
+vim.keymap.set('t', '<C-h>', '<C-\\><C-n><C-w>h')
+vim.keymap.set('t', '<C-j>', '<C-\\><C-n><C-w>j')
+vim.keymap.set('t', '<C-k>', '<C-\\><C-n><C-w>k')
+vim.keymap.set('t', '<C-l>', '<C-\\><C-n><C-w>l')
