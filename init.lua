@@ -628,12 +628,6 @@ vim.cmd([[
   silent! xmap     <unique><silent><expr>  >  <SID>ShiftKeepingSelection(">")
   silent! xmap     <unique><silent><expr>  <  <SID>ShiftKeepingSelection("<")
 
-  " Hit <RETURN> to escape visual mode...
-  silent! xnoremap <unique><silent>        <CR>   <ESC>
-
-  " Hit ZZ to quit from within visual mode...
-  silent! xnoremap <unique><silent>        ZZ     <ESC>ZZ
-
   " Allow selection to persist through an undo...
   silent! xnoremap <unique><silent>        u      <ESC>ugv
   silent! xnoremap <unique><silent>        <C-R>  <ESC><C-R>gv
