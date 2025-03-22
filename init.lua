@@ -1,15 +1,12 @@
 -- ehzawad@gmail.com; email me to say hi or if there are any questions
-vim.g.mapleader = ','
-vim.g.maplocalleader = ','
+vim.g.mapleader = ' '
+vim.g.maplocalleader = ' '
 
 -- Install package manager
---    https://github.com/folke/lazy.nvim
---    `:help lazy.nvim.txt` for more info
 local lazypath = vim.fn.stdpath 'data' .. '/lazy/lazy.nvim'
 if not vim.loop.fs_stat(lazypath) then
   vim.fn.system {
-    'git',
-    'clone',
+    'git', 'clone',
     '--filter=blob:none',
     'https://github.com/folke/lazy.nvim.git',
     '--branch=stable', -- latest stable release
@@ -19,50 +16,28 @@ end
 vim.opt.rtp:prepend(lazypath)
 
 -- NOTE: Here is where you install your plugins.
---  You can configure plugins using the `config` key.
---
---  You can also configure plugins after the setup call,
---    as they will be available in your neovim runtime.
 require('lazy').setup({
   -- NOTE: First, some plugins that don't require any configuration
-
-  -- Git related plugins
-  'tpope/vim-fugitive',
-  'tpope/vim-rhubarb',
-  -- surround delimiters
-  'tpope/vim-surround',
-  -- repeat delimiters
   'tpope/vim-repeat',
 
   -- Detect tabstop and shiftwidth automatically
   'tpope/vim-sleuth',
   'zbirenbaum/copilot.lua',
 
-  {
-    'f-person/git-blame.nvim',
-    config = function()
-      vim.g.gitblame_enabled = 1
-      vim.g.gitblame_message_template = '  <author> • <date> • <summary>'
-      vim.g.gitblame_date_format = '%r'
-      vim.g.gitblame_highlight_group = 'Comment'
-    end
-  },
   -- NOTE: This is where your plugins related to LSP can be installed.
   --  The configuration is done below. Search for lspconfig to find it below.
   {
     -- LSP Configuration & Plugins
     'neovim/nvim-lspconfig',
     dependencies = {
-      -- Automatically install LSPs to stdpath for neovim
+      -- Automatically install LSPs to stdpath for neovimßß
       { 'williamboman/mason.nvim', config = true },
       'williamboman/mason-lspconfig.nvim',
 
       -- Useful status updates for LSP
       -- NOTE: `opts = {}` is the same as calling `require('fidget').setup({})`
-      { 'j-hui/fidget.nvim',       tag = 'legacy', opts = {} },
-
-      -- Additional lua configuration, makes nvim stuff amazing!
-      'folke/neodev.nvim',
+      -- notification on the buffer that the LSP is attached to
+      { 'j-hui/fidget.nvim',opts = {} },
     },
   },
 
@@ -83,10 +58,6 @@ require('lazy').setup({
     -- Autocompletion
     'hrsh7th/nvim-cmp',
     dependencies = {
-      -- Snippet Engine & its associated nvim-cmp source
-      'L3MON4D3/LuaSnip',
-      'saadparwaiz1/cmp_luasnip',
-
       -- Adds LSP completion capabilities
       'hrsh7th/cmp-nvim-lsp',
       -- nvim-cmp source for path
@@ -175,10 +146,6 @@ require('lazy').setup({
     build = ':TSUpdate',
   },
 
-  {
-
-  },
-
 }, {})
 
 -- [[ Setting options ]]
@@ -257,6 +224,7 @@ require('nvim-treesitter.configs').setup {
   -- auto_install = false,
   auto_install = true,
 
+
   highlight = { enable = true },
   indent = { enable = true },
   incremental_selection = {
@@ -264,7 +232,7 @@ require('nvim-treesitter.configs').setup {
     keymaps = {
       init_selection = '<c-space>',
       node_incremental = '<c-space>',
-      scope_incremental = '<c-s>',
+      scope_incremental = '<leader>cs',
       node_decremental = '<M-space>',
     },
   },
@@ -383,9 +351,6 @@ local servers = {
   },
 }
 
--- Setup neovim lua configuration
-require('neodev').setup()
-
 -- nvim-cmp supports additional completion capabilities, so broadcast that to servers
 local capabilities = vim.lsp.protocol.make_client_capabilities()
 capabilities = require('cmp_nvim_lsp').default_capabilities(capabilities)
@@ -410,9 +375,6 @@ mason_lspconfig.setup_handlers {
 
 -- [[ Configure nvim-cmp ]]
 local cmp = require 'cmp'
-local luasnip = require 'luasnip'
-require('luasnip.loaders.from_vscode').lazy_load()
-luasnip.config.setup {}
 
 -- Define has_words_before function
 local has_words_before = function()
@@ -428,12 +390,12 @@ require("copilot").setup({
     auto_trigger = true,
     debounce = 75,
     keymap = {
-      accept = "<Tab>",
+      accept = "<M-l>",
       accept_word = "<M-w>",
       accept_line = "<M-l>",
       next = "<M-]>",
       prev = "<M-[>",
-      dismiss = "<C-]>",
+      dismiss = "<M-]>",
     },
   },
   panel = { enabled = false },
@@ -444,7 +406,7 @@ require("copilot").setup({
   },
 })
 
--- Single consolidated cmp setup with explicit priorities
+
 cmp.setup {
   completion = {
     completeopt = 'menu,menuone,noselect',
@@ -467,8 +429,6 @@ cmp.setup {
     ['<Tab>'] = cmp.mapping(function(fallback)
       if cmp.visible() and has_words_before() then
         cmp.select_next_item({ behavior = cmp.SelectBehavior.Select })
-      elseif luasnip.expand_or_locally_jumpable() then
-        luasnip.expand_or_jump()
       else
         fallback()
       end
@@ -476,8 +436,6 @@ cmp.setup {
     ['<S-Tab>'] = cmp.mapping(function(fallback)
       if cmp.visible() then
         cmp.select_prev_item()
-      elseif luasnip.locally_jumpable(-1) then
-        luasnip.jump(-1)
       else
         fallback()
       end
@@ -486,7 +444,6 @@ cmp.setup {
   -- Flat list of sources with explicit priorities
   sources = {
     { name = 'nvim_lsp', priority = 1000 },  
-    { name = 'luasnip', priority = 900 },
     { name = 'buffer', priority = 800, min_length = 4 },
     { name = 'path', priority = 700, min_length = 4 },
     { name = 'copilot', priority = 100 },  -- Much lower priority for Copilot
@@ -527,8 +484,8 @@ vim.api.nvim_create_user_command('Pilott', function()
     cmp.setup {
       sources = {
         { name = 'copilot', priority = 1000 },
-        { name = 'buffer', priority = 500, min_length = 2 },
-        { name = 'path', priority = 250, min_length = 2 },
+        { name = 'buffer', priority = 300, min_length = 4 },
+        { name = 'path', priority = 250, min_length = 4 },
       },
       -- Keep other settings the same
     }
@@ -545,7 +502,6 @@ vim.api.nvim_create_user_command('Pilott', function()
     cmp.setup {
       sources = {
         { name = 'nvim_lsp', priority = 1000 },
-        { name = 'luasnip', priority = 900 },
         { name = 'buffer', priority = 800, min_length = 4 },
         { name = 'path', priority = 700, min_length = 4 },
         { name = 'copilot', priority = 100 },
@@ -733,7 +689,9 @@ inoremap <expr> <C-F> col('.')>strlen(getline('.'))?"\<Lt>C-F>":"\<Lt>Right>"
 
 
 " common type-mistakes
+" prese space btw
 ab teh the
+
 
 " Highlight Matched Parenthesis
 hi MatchParen ctermbg=gray guibg=lightgray
@@ -842,21 +800,6 @@ function load_large_file_async(filename, chunk_size)
     on_exit = on_exit,
   })
 end
-
--- https://github.com/f-person/git-blame.nvim
-vim.g.gitblame_display_virtual_text = 0 -- Disable virtual text
-
-local git_blame = require('gitblame')
-
-require('lualine').setup({
-  sections = {
-    lualine_c = {
-      { git_blame.get_current_blame_text, cond = git_blame.is_blame_text_available }
-    }
-  }
-})
-
-
 
 
 local function python_symbols(opts)
@@ -1344,3 +1287,301 @@ require("oil").setup({
     border = "rounded",
   },
 })
+
+
+
+-- Store the diagnostic state (modern approach)
+
+-- Command to toggle both virtual text and sign column indicators
+vim.api.nvim_create_user_command('Togglediagnostics', function()
+  virtual_text_enabled = not virtual_text_enabled
+  
+  if virtual_text_enabled then
+    -- Enable both virtual text and sign column
+    vim.diagnostic.config({
+      virtual_text = {
+        spacing = 4,
+        prefix = "■", -- Use a custom prefix
+        format = function(diagnostic)
+          -- Format message to be more concise
+          local message = diagnostic.message
+          if #message > 50 then
+            message = message:sub(1, 47) .. "..."
+          end
+          return message
+        end,
+      },
+      signs = {
+        priority = 20,
+        text = {
+          [vim.diagnostic.severity.ERROR] = 'E',
+          [vim.diagnostic.severity.WARN] = 'W',
+          [vim.diagnostic.severity.INFO] = 'I',
+          [vim.diagnostic.severity.HINT] = 'H',
+        },
+      }
+    })
+    
+    -- Make sure sign column is visible
+    vim.opt.signcolumn = "yes"
+    print("Diagnostic indicators enabled (virtual text and sign column)")
+  else
+    -- Disable both virtual text and sign column
+    vim.diagnostic.config({
+      virtual_text = false,
+      signs = false  -- Disable diagnostic signs completely
+    })
+    
+    -- Check if we can hide the sign column (only if no other features need it)
+    local hide_sign_column = true
+    
+    -- Keep sign column if git signs or other features are active
+    -- Use proper Lua syntax for accessing Vim functions
+    if vim.fn.exists('*gitsigns#get_hunks') == 1 then
+      -- Use square bracket notation for functions with special characters
+      local hunks = vim.fn['gitsigns#get_hunks']()
+      if hunks and #hunks > 0 then
+        hide_sign_column = false
+      end
+    end
+    
+    -- Try using the Lua API directly if available
+    local gs_ok, gs = pcall(require, 'gitsigns')
+    if gs_ok and gs.get_hunks and gs.get_hunks() then
+      hide_sign_column = false
+    end
+    
+    -- Set sign column based on our decision
+    if hide_sign_column then
+      vim.opt.signcolumn = "no"
+    end
+    
+    print("Diagnostic indicators disabled (virtual text and sign column)")
+  end
+end, {})
+
+
+
+-- Create an autocmd to disable diagnostics on startup
+vim.api.nvim_create_autocmd("VimEnter", {
+  callback = function()
+    -- Disable virtual text
+    vim.diagnostic.config({ virtual_text = false, signs = false })
+    
+    -- Clear any existing diagnostics
+    for _, namespace in ipairs(vim.diagnostic.get_namespaces()) do
+      vim.diagnostic.reset(namespace)
+    end
+    
+    -- Set our state variable to match
+    virtual_text_enabled = false
+    
+    -- Hide sign column if it's safe to do so
+    local hide_sign_column = true
+    
+    -- Check for git signs before hiding
+    local gs_ok, gs = pcall(require, 'gitsigns')
+    if gs_ok and gs.get_hunks then
+      local hunks = gs.get_hunks()
+      if hunks and #hunks > 0 then
+        hide_sign_column = false
+      end
+    end
+    
+    -- Only hide sign column if safe
+    if hide_sign_column then
+      vim.opt.signcolumn = "no"
+    end
+  end,
+  group = vim.api.nvim_create_augroup("DisableDiagnosticsOnStartup", { clear = true }),
+  desc = "Disable diagnostics when Neovim starts",
+})
+
+-- Neovim 0.10 compatible mapping conflict detector
+-- Focuses on detecting conflicts within the same mode
+
+local mapping_conflicts = {}
+
+-- Function to find conflicting key mappings in the same mode
+function mapping_conflicts.find_same_mode_conflicts()
+  -- Modes to check
+  local modes = {
+    n = "Normal",
+    i = "Insert", 
+    v = "Visual",
+    x = "Visual Block",
+    s = "Select",
+    t = "Terminal"
+  }
+  
+  local all_mappings = {}
+  local conflicts = {}
+  
+  -- Get all mappings for each mode
+  for mode_char, mode_name in pairs(modes) do
+    all_mappings[mode_char] = {}
+    
+    -- Get mappings using vim.api
+    local ok, mappings = pcall(vim.api.nvim_get_keymap, mode_char)
+    if not ok then
+      vim.notify("Error getting keymaps for mode " .. mode_name, vim.log.levels.ERROR)
+      goto continue
+    end
+    
+    -- Process each mapping
+    for _, map in ipairs(mappings) do
+      local lhs = map.lhs  -- The key combination
+      
+      -- Skip special keys like mouse actions if needed
+      if string.match(lhs, "^<.*mouse") then
+        goto skip_mapping
+      end
+      
+      local rhs = map.rhs or "[Lua function]"
+      if map.callback ~= nil then
+        rhs = "[Lua callback]"
+      end
+      local buffer = map.buffer and tonumber(map.buffer) or "global"
+      -- Store mapping details
+      if not all_mappings[mode_char][lhs] then
+        all_mappings[mode_char][lhs] = {}
+      end
+      -- Try to get the source file
+      local source = "Unknown"
+      if vim.fn.has("nvim-0.9") == 1 then
+        if map.desc and map.desc:match("defined at") then
+          source = map.desc:match("defined at (.+)")
+        else
+          -- Try the verbose map command approach for older versions
+          local ok, output = pcall(vim.fn.execute, mode_char .. "map " .. vim.fn.escape(lhs, '\\'))
+          if ok then
+            local src_match = output:match("Last set from (.+)")
+            if src_match then
+              source = src_match
+            end
+          end
+        end
+      end
+      table.insert(all_mappings[mode_char][lhs], {
+        rhs = rhs,
+        buffer = buffer,
+        source = source,
+        mode = mode_name,
+        noremap = map.noremap == 1,
+        silent = map.silent == 1,
+        expr = map.expr == 1,
+        desc = map.desc or ""
+      })
+      -- Check if we have a conflict in this mode (multiple mappings for same key)
+      if #all_mappings[mode_char][lhs] > 1 then
+        if not conflicts[mode_char] then 
+          conflicts[mode_char] = {} 
+        end
+        conflicts[mode_char][lhs] = all_mappings[mode_char][lhs]
+      end
+      
+      ::skip_mapping::
+    end
+    
+    ::continue::
+  end
+  
+  -- Format same-mode conflicts
+  local results = {}
+  
+  for mode_char, mode_conflicts in pairs(conflicts) do
+    for lhs, details in pairs(mode_conflicts) do
+      table.insert(results, {
+        key = lhs,
+        mode = modes[mode_char],
+        mode_char = mode_char,
+        mappings = details
+      })
+    end
+  end
+  -- Sort results by mode then key for better readability
+  table.sort(results, function(a, b)
+    if a.mode == b.mode then
+      return a.key < b.key
+    end
+    return a.mode < b.mode
+  end)
+  return results
+end
+
+-- Function to display conflicts in a friendly format
+function mapping_conflicts.display_conflicts()
+  local conflicts = mapping_conflicts.find_same_mode_conflicts()
+  -- Clear the command line
+  vim.cmd("echo ''")
+  if #conflicts > 0 then
+    vim.notify("Found " .. #conflicts .. " key mapping conflicts", vim.log.levels.INFO)
+    print("====== SAME MODE KEY MAPPING CONFLICTS ======")
+    local current_mode = nil
+    for _, conflict in ipairs(conflicts) do
+      -- Print mode header if we're in a new mode
+      if current_mode ~= conflict.mode then
+        current_mode = conflict.mode
+        print("\n=== " .. current_mode .. " Mode ===")
+      end
+      print(string.format("\nKey: %s has %d different mappings:", 
+        vim.inspect(conflict.key), #conflict.mappings))
+      for i, mapping in ipairs(conflict.mappings) do
+        print(string.format("  %d. Maps to: %s", i, vim.inspect(mapping.rhs)))
+        print(string.format("     Source: %s", mapping.source))
+        print(string.format("     Buffer: %s", tostring(mapping.buffer)))
+        local flags = {}
+        if mapping.noremap then table.insert(flags, "noremap") end
+        if mapping.silent then table.insert(flags, "silent") end
+        if mapping.expr then table.insert(flags, "expr") end
+        if mapping.desc and mapping.desc ~= "" then
+          print(string.format("     Description: %s", mapping.desc))
+        end
+        if #flags > 0 then
+          print(string.format("     Flags: %s", table.concat(flags, ", ")))
+        end
+      end
+    end
+  else
+    vim.notify("No mapping conflicts found within the same mode", vim.log.levels.INFO)
+  end
+  return conflicts
+end
+
+-- Create a user command to run the function
+vim.api.nvim_create_user_command('FindMappingConflicts', function()
+  mapping_conflicts.display_conflicts()
+end, {
+  desc = "Find conflicting key mappings in the same mode"
+})
+
+-- Using Lua functions
+local builtin = require('telescope.builtin')
+vim.keymap.set('n', '<leader>ff', builtin.find_files, { desc = 'Telescope find files' })
+vim.keymap.set('n', '<leader>fg', builtin.live_grep, { desc = 'Telescope live grep' })
+vim.keymap.set('n', '<leader>fb', builtin.buffers, { desc = 'Telescope buffers' })
+vim.keymap.set('n', '<leader>fh', builtin.help_tags, { desc = 'Telescope help tags' })
+
+
+-- Treesitter folding with Lua
+-- Later make a function to manage this, like wrap it inside a lua functions
+
+-- Set foldmethod to 'expr' and foldexpr to the Lua PythonCaptureOuterFunction
+
+-- Set global default foldmethod to 'manual'
+vim.o.foldmethod = 'manual'
+
+-- Define the toggle function
+local function toggle_folding()
+  if vim.wo.foldmethod == 'manual' then
+    vim.wo.foldmethod = 'expr'
+    vim.wo.foldexpr = 'v:lua.vim.treesitter.foldexpr()'
+    print("Folding enabled with Treesitter")
+  else
+    vim.wo.foldmethod = 'manual'
+    print("Folding disabled")
+  end
+end
+
+-- Optionally, create a user command to call the function
+vim.api.nvim_create_user_command('ToggleFolding', toggle_folding, {})
