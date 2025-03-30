@@ -1584,16 +1584,16 @@ vim.api.nvim_create_user_command('ToggleFolding', toggle_folding, {})
 
 -- Detect OS and configure clipboard
 local function setup_clipboard()
-  local os = vim.loop.os_uname().sysname
+  local system = vim.loop.os_uname().sysname
   
-  if os == "Darwin" then
+  if system == "Darwin" then
     -- macOS - native clipboard should work automatically
     vim.opt.clipboard = "unnamedplus"
     return
   end
   
   -- For Linux, check if we're in SSH
-  local is_ssh = (os.getenv("SSH_TTY") ~= nil or os.getenv("SSH_CLIENT") ~= nil or os.getenv("SSH_CONNECTION") ~= nil)
+  local is_ssh = (vim.env.SSH_TTY ~= nil or vim.env.SSH_CLIENT ~= nil or vim.env.SSH_CONNECTION ~= nil)
   
   if is_ssh then
     -- Configure OSC52 for SSH sessions
@@ -1612,5 +1612,4 @@ local function setup_clipboard()
   -- Use clipboard for all operations
   vim.opt.clipboard = "unnamedplus"
 end
-
 setup_clipboard()
