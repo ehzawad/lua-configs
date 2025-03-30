@@ -161,11 +161,6 @@ vim.wo.number = true
 -- Enable mouse mode
 vim.o.mouse = 'a'
 
--- Sync clipboard between OS and Neovim.
---  Remove this option if you want your OS clipboard to remain independent.
---  See `:help 'clipboard'`
-vim.o.clipboard = 'unnamedplus'
-
 -- Enable break indent
 vim.o.breakindent = true
 
@@ -1294,6 +1289,7 @@ require("oil").setup({
 
 -- Command to toggle both virtual text and sign column indicators
 vim.api.nvim_create_user_command('Togglediagnostics', function()
+  local virtual_text_enabled = false
   virtual_text_enabled = not virtual_text_enabled
   
   if virtual_text_enabled then
@@ -1585,3 +1581,36 @@ end
 
 -- Optionally, create a user command to call the function
 vim.api.nvim_create_user_command('ToggleFolding', toggle_folding, {})
+
+-- Detect OS and configure clipboard
+local function setup_clipboard()
+  local os = vim.loop.os_uname().sysname
+  
+  if os == "Darwin" then
+    -- macOS - native clipboard should work automatically
+    vim.opt.clipboard = "unnamedplus"
+    return
+  end
+  
+  -- For Linux, check if we're in SSH
+  local is_ssh = (os.getenv("SSH_TTY") ~= nil or os.getenv("SSH_CLIENT") ~= nil or os.getenv("SSH_CONNECTION") ~= nil)
+  
+  if is_ssh then
+    -- Configure OSC52 for SSH sessions
+    vim.g.clipboard = 'osc52'
+  else
+    -- Check for X11 or Wayland
+    if vim.env.DISPLAY or vim.env.WAYLAND_DISPLAY then
+      -- GUI environment, let Neovim auto-detect (xclip, etc.)
+      vim.g.clipboard = nil
+    else
+      -- TTY environment, use OSC52
+      vim.g.clipboard = 'osc52'
+    end
+  end
+  
+  -- Use clipboard for all operations
+  vim.opt.clipboard = "unnamedplus"
+end
+
+setup_clipboard()
