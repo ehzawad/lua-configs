@@ -903,7 +903,7 @@ cmp.setup.cmdline(':', {
   sources = cmp.config.sources({
     { name = 'path', option = { trailing_slash = true } }
   }, {
-    { name = 'cmdline', keyword_length = 2, max_item_count = 30 }
+    { name = 'cmdline', keyword_length = 1, max_item_count = 15 }
   })
 })
 
