@@ -2,20 +2,49 @@
 vim.g.mapleader = ' '
 vim.g.maplocalleader = ' '
 
--- Add detection for Terminal.app
-local is_mac_terminal = false
-if vim.fn.has('mac') == 1 then
-  -- Check if we're in Terminal.app (not iTerm2, etc.)
-  local term_program = vim.env.TERM_PROGRAM or ""
-  if term_program == "Apple_Terminal" then
-    is_mac_terminal = true
+--------------------------------------------------------------------------------
+-- Unified Terminal Detection
+--------------------------------------------------------------------------------
+local function detect_basic_terminal()
+  local sysname = vim.loop.os_uname().sysname
+  local is_basic = false
+
+  if sysname == "Darwin" then
+    local term_program = vim.env.TERM_PROGRAM or ""
+    if term_program == "Apple_Terminal" then
+      is_basic = true
+    elseif term_program == "iTerm.app" then
+      is_basic = false
+    else
+      is_basic = false
+    end
+  elseif sysname == "Linux" then
+    local term = vim.env.TERM or ""
+    local term_program = vim.env.TERM_PROGRAM or ""
+    local xterm_version = vim.env.XTERM_VERSION or ""
+    -- If running in a basic xterm-like terminal (e.g. default Ubuntu GNOME Terminal)
+    if (term == "xterm" or term:match("^xterm%-")) and term_program == "" and xterm_version == "" then
+      is_basic = true
+    else
+      is_basic = false
+    end
+  else
+    is_basic = false
   end
+
+  return is_basic
 end
 
--- Fix Terminal.app display issues with custom icons
+local basic_terminal = detect_basic_terminal()
+vim.g.is_basic_terminal = basic_terminal and 1 or 0
+
+--------------------------------------------------------------------------------
+-- UI and Package Manager Setup
+--------------------------------------------------------------------------------
+
+-- Terminal UI settings for basic terminals
 local terminal_ui = {
   icons = {
-    -- Use simple ASCII characters for Terminal.app
     cmd = "CMD",
     config = "CFG",
     event = "EVT",
@@ -32,14 +61,8 @@ local terminal_ui = {
     source = "SRC",
     start = "START",
     task = "TASK",
-    list = {
-      "●",
-      "→",
-      "★",
-      "‒",
-    },
+    list = { "●", "→", "★", "‒" },
   },
-  -- Use a simple border style that works in Terminal.app
   border = "single",
 }
 
@@ -56,9 +79,8 @@ if not vim.loop.fs_stat(lazypath) then
 end
 vim.opt.rtp:prepend(lazypath)
 
--- Configure lazy.nvim for terminal compatibility before it loads
-if is_mac_terminal then
-  -- This must be set BEFORE requiring lazy for the first time
+-- Configure lazy.nvim UI for basic terminals
+if basic_terminal then
   vim.g.lazy_ui = terminal_ui
 end
 
@@ -70,13 +92,13 @@ if not has_notify then
     opts = opts or {}
     level = level or vim.log.levels.INFO
     
-    -- Map log levels to symbols - Using simple ASCII for Terminal.app compatibility
+    -- Map log levels to symbols
     local symbols = {
-      [vim.log.levels.ERROR] = "ERROR",
-      [vim.log.levels.WARN] = "WARNING",
-      [vim.log.levels.INFO] = "INFO",
-      [vim.log.levels.DEBUG] = "DEBUG",
-      [vim.log.levels.TRACE] = "TRACE"
+      [vim.log.levels.ERROR] = basic_terminal and "ERROR" or "✘ ERROR",
+      [vim.log.levels.WARN] = basic_terminal and "WARNING" or "⚠ WARNING",
+      [vim.log.levels.INFO] = basic_terminal and "INFO" or "ℹ INFO",
+      [vim.log.levels.DEBUG] = basic_terminal and "DEBUG" or "🔧 DEBUG",
+      [vim.log.levels.TRACE] = basic_terminal and "TRACE" or "🔍 TRACE"
     }
     
     -- Format the message with title if provided
@@ -108,6 +130,22 @@ end
 
 -- Make notify globally available
 vim.notify = notify_module
+
+-- Create a startup message suppression system
+local suppress_messages_until_time = vim.loop.now() + 1500 -- Suppress for ~1.5 seconds
+local original_vim_notify = vim.notify
+vim.notify = function(msg, level, opts)
+  -- During startup, suppress non-critical messages
+  if vim.loop.now() < suppress_messages_until_time and level < vim.log.levels.ERROR then
+    return
+  end
+  return original_vim_notify(msg, level, opts)
+end
+
+-- Restore normal notifications after startup
+vim.defer_fn(function()
+  vim.notify = original_vim_notify
+end, 1500)
 
 -- Set up global error handler for Lua errors
 local original_notify = vim.notify
@@ -175,7 +213,7 @@ local function create_user_command_with_error_handling(name, fn, opts)
       -- Use a nicer notification format for the error
       vim.notify(error_msg, vim.log.levels.ERROR, {
         title = "Command Error: " .. name,
-        -- Remove icon for Terminal.app compatibility
+        icon = basic_terminal and "!" or "⚠️",
       })
     end
   end, opts)
@@ -196,7 +234,7 @@ vim.api.nvim_create_autocmd("CmdlineLeave", {
             vim.notify("Command not found: " .. cmd_name .. "\nCheck spelling or install the required plugin.", 
                       vim.log.levels.ERROR, {
                         title = "Unknown Command",
-                        -- Remove icon for Terminal.app compatibility
+                        icon = basic_terminal and "?" or "❓",
                       })
           end
         end
@@ -231,7 +269,7 @@ require('lazy').setup({
     },
   },
 
-  { "catppuccin/nvim",         name = "catppuccin", priority = 1000 },
+  { "catppuccin/nvim", name = "catppuccin", priority = 1000 },
   {
     'stevearc/oil.nvim',
     ---@module 'oil'
@@ -270,34 +308,15 @@ require('lazy').setup({
     'stevearc/aerial.nvim',
     config = function()
       require('aerial').setup({
-        -- Terminal.app friendly icons (plain text with no special characters)
-        icons = is_mac_terminal and {
-          Array = "Array",
-          Boolean = "Bool",
-          Class = "Class",
-          Constant = "Const",
-          Constructor = "Constr",
-          Enum = "Enum",
-          EnumMember = "EnumMem",
-          Event = "Event",
-          Field = "Field",
-          File = "File",
-          Function = "Func",
-          Interface = "Iface",
-          Key = "Key",
-          Method = "Method",
-          Module = "Module",
-          Namespace = "NS",
-          Null = "NULL",
-          Number = "Num",
-          Object = "Obj",
-          Operator = "Op",
-          Package = "Pkg",
-          Property = "Prop",
-          String = "Str",
-          Struct = "Struct",
-          TypeParameter = "TypeParam",
-          Variable = "Var",
+        -- Enable icons for various kinds, adapted for terminal type
+        icons = basic_terminal and {
+          Array = "Array", Boolean = "Bool", Class = "Class", Constant = "Const",
+          Constructor = "Constr", Enum = "Enum", EnumMember = "EnumMem",
+          Event = "Event", Field = "Field", File = "File", Function = "Func",
+          Interface = "Iface", Key = "Key", Method = "Method", Module = "Module",
+          Namespace = "NS", Null = "NULL", Number = "Num", Object = "Obj",
+          Operator = "Op", Package = "Pkg", Property = "Prop", String = "Str",
+          Struct = "Struct", TypeParameter = "TypeParam", Variable = "Var",
         } or {
           Array = "󰅪",
           Boolean = "⊨",
@@ -341,7 +360,7 @@ require('lazy').setup({
         add = { text = '+' },
         change = { text = '~' },
         delete = { text = '_' },
-        topdelete = { text = '^' },
+        topdelete = { text = '‾' },
         changedelete = { text = '~' },
       },
       on_attach = function(bufnr)
@@ -359,7 +378,8 @@ require('lazy').setup({
     -- See `:help lualine.txt`
     opts = {
       options = {
-        icons_enabled = not is_mac_terminal, -- Disable icons for Terminal.app
+        icons_enabled = not basic_terminal,
+        -- theme = 'onedark',
         component_separators = '|',
         section_separators = '',
       },
@@ -375,7 +395,7 @@ require('lazy').setup({
   },
 
   -- "gc" to comment visual regions/lines
-  { 'numToStr/Comment.nvim',         opts = {} },
+  { 'numToStr/Comment.nvim', opts = {} },
 
   -- Fuzzy Finder (files, lsp, etc)
   { 'nvim-telescope/telescope.nvim', branch = '0.1.x', dependencies = { 'nvim-lua/plenary.nvim' } },
@@ -442,15 +462,14 @@ vim.o.lazyredraw = false -- Disable lazyredraw to improve resizing performance
 -- Set completeopt to have a better completion experience
 vim.o.completeopt = 'menu,menuone,noselect'
 
--- Configure termguicolors based on terminal capabilities
-if is_mac_terminal then
-  -- Terminal.app doesn't handle true colors well, disable termguicolors
+-- Set termguicolors based on terminal capability
+if basic_terminal then
   vim.o.termguicolors = false
 else
   vim.o.termguicolors = true
 end
 
--- Terminal handling for better resize behavior with Terminal.app
+-- Terminal handling for better resize behavior with iTerm2
 local term_augroup = vim.api.nvim_create_augroup("TerminalHandling", { clear = true })
 vim.api.nvim_create_autocmd({"VimResized"}, {
   group = term_augroup,
@@ -697,34 +716,15 @@ end
 -- Initialize lspkind
 local lspkind = require('lspkind')
 
--- Simplified symbol map for Terminal.app
-local symbol_map = is_mac_terminal and {
-  Text = "Text",
-  Method = "Method",
-  Function = "Func",
-  Constructor = "Constr",
-  Field = "Field",
-  Variable = "Var",
-  Class = "Class",
-  Interface = "Iface",
-  Module = "Module",
-  Property = "Prop",
-  Unit = "Unit",
-  Value = "Value",
-  Enum = "Enum",
-  Keyword = "Keyword",
-  Snippet = "Snippet",
-  Color = "Color",
-  File = "File",
-  Reference = "Ref",
-  Folder = "Folder",
-  EnumMember = "EnumMem",
-  Constant = "Const",
-  Struct = "Struct",
-  Event = "Event",
-  Operator = "Op",
-  TypeParameter = "TypeParam",
-  Copilot = "AI",
+-- Set up symbol map based on terminal capability
+local symbol_map = basic_terminal and {
+  Text = "Text", Method = "Method", Function = "Func", Constructor = "Constr",
+  Field = "Field", Variable = "Var", Class = "Class", Interface = "Iface",
+  Module = "Module", Property = "Prop", Unit = "Unit", Value = "Value",
+  Enum = "Enum", Keyword = "Keyword", Snippet = "Snippet", Color = "Color",
+  File = "File", Reference = "Ref", Folder = "Folder", EnumMember = "EnumMem",
+  Constant = "Const", Struct = "Struct", Event = "Event", Operator = "Op",
+  TypeParameter = "TypeParam", Copilot = "AI",
 } or {
   Text = "󰉿",
   Method = "󰆧",
@@ -888,7 +888,7 @@ cmp.setup.cmdline(':', {
   sources = cmp.config.sources({
     { name = 'path', option = { trailing_slash = true } }
   }, {
-    { name = 'cmdline', keyword_length = 1, max_item_count = 30 }
+    { name = 'cmdline', keyword_length = 2, max_item_count = 30 }
   })
 })
 
@@ -1001,11 +1001,10 @@ create_user_command_with_error_handling('LspStatus', function()
   })
 end, {})
 
--- Function to set colorscheme
+-- Function to set colorscheme based on terminal type
 function SetColorScheme()
-  if is_mac_terminal then
-    -- Use a more Terminal.app friendly colorscheme
-    vim.cmd('colorscheme retrobox') -- Built-in scheme works well
+  if basic_terminal then
+    vim.cmd('colorscheme retrobox') -- Use a basic colorscheme for basic terminals
   else
     vim.cmd('colorscheme catppuccin-mocha')
   end
@@ -1340,15 +1339,18 @@ vim.keymap.set('t', '<C-j>', '<C-\\><C-n><C-w>j')
 vim.keymap.set('t', '<C-k>', '<C-\\><C-n><C-w>k')
 vim.keymap.set('t', '<C-l>', '<C-\\><C-n><C-w>l')
 
--- Configure Oil with Terminal.app compatibility
+-- Configure Oil with icons based on terminal capability
 require("oil").setup({
   -- Oil will take over directory buffers (e.g. `vim .` or `:e src/`)
+  -- Set to false if you want some other plugin (e.g. netrw) to open when you edit directories.
   default_file_explorer = true,
-  -- Modify columns based on terminal compatibility
-  columns = is_mac_terminal and {
-    "icon",  -- Keep icon column as it will use text fallbacks
-  } or {
+  -- Id is automatically added at the beginning, and name at the end
+  -- See :help oil-columns
+  columns = {
     "icon",
+    -- "permissions",
+    -- "size",
+    -- "mtime",
   },
   -- Buffer-local options to use for oil buffers
   buf_options = {
@@ -1366,16 +1368,22 @@ require("oil").setup({
     conceallevel = 3,
     concealcursor = "nvic",
   },
-  -- Send deleted files to the trash instead of permanently deleting them
+  -- Send deleted files to the trash instead of permanently deleting them (:help oil-trash)
   delete_to_trash = false,
-  -- Skip the confirmation popup for simple operations
+  -- Skip the confirmation popup for simple operations (:help oil.skip_confirm_for_simple_edits)
   skip_confirm_for_simple_edits = false,
   -- Selecting a new/moved/renamed file or directory will prompt you to save changes first
+  -- (:help prompt_save_on_select_new_entry)
   prompt_save_on_select_new_entry = true,
   -- Oil will automatically delete hidden buffers after this delay
+  -- You can set the delay to false to disable cleanup entirely
+  -- Note that the cleanup process only starts when none of the oil buffers are currently displayed
   cleanup_delay_ms = 2000,
-  -- Rest of configuration remains the same
-  -- ...
+  -- View options for the file explorer
+  view_options = {
+    -- Show files and directories that start with "."
+    show_hidden = false,
+  },
 })
 
 -- Store the diagnostic state (modern approach)
@@ -1390,7 +1398,7 @@ create_user_command_with_error_handling('Togglediagnostics', function()
     vim.diagnostic.config({
       virtual_text = {
         spacing = 4,
-        prefix = is_mac_terminal and "*" or "■", -- Simpler prefix for Terminal.app
+        prefix = basic_terminal and "*" or "■", -- Use a custom prefix based on terminal type
         format = function(diagnostic)
           -- Format message to be more concise
           local message = diagnostic.message
@@ -1659,8 +1667,6 @@ vim.keymap.set('n', '<leader>fh', builtin.help_tags, { desc = 'Telescope help ta
 -- Treesitter folding with Lua
 -- Later make a function to manage this, like wrap it inside a lua functions
 
--- Set foldmethod to 'expr' and foldexpr to the Lua PythonCaptureOuterFunction
-
 -- Set global default foldmethod to 'manual'
 vim.o.foldmethod = 'manual'
 
@@ -1720,3 +1726,70 @@ if status then
     vim.notify("Symbols picker is disabled", vim.log.levels.INFO)
   end
 end
+
+
+-- Default cursor line settings
+vim.opt.cursorline = false
+vim.opt.cursorlineopt = "line"  -- Highlight both line and line number
+
+-- Cursor appearance configuration
+local function setup_cursor_highlight()
+  -- Soft, elegant cursor line highlighting
+  vim.api.nvim_set_hl(0, 'CursorLine', {
+    bg = basic_terminal and "#1c1c1c" or "#262626",  -- Slightly lighter background for better visibility
+    ctermbg = 233,
+    -- Remove underline to make it cleaner
+    -- Use a subtle background instead of harsh underlining
+  })
+
+  -- Cursor line number styling
+  vim.api.nvim_set_hl(0, 'CursorLineNr', {
+    fg = "#ffaf00",  -- Warm yellow, more pleasing than pure yellow
+    bg = basic_terminal and "#1c1c1c" or "#262626",
+    ctermfg = 214,   -- Corresponding terminal color
+    ctermbg = 233,
+    bold = true,
+  })
+
+  -- Cursor itself - make it stand out subtly
+  vim.api.nvim_set_hl(0, 'Cursor', {
+    reverse = true,
+    -- Avoid blinking in terminal to prevent potential display issues
+  })
+  
+  -- Improve visual selection highlighting for retrobox colorscheme
+  vim.api.nvim_set_hl(0, 'Visual', {
+    bg = basic_terminal and "#3a3a3a" or "#3a3a3a",
+    ctermbg = 237,  -- Higher contrast background for better visibility
+  })
+end
+
+-- Set up cursor highlighting
+setup_cursor_highlight()
+
+-- Cursor shape configuration (compatible with Terminal.app, iTerm2, and Ubuntu Terminal)
+if not basic_terminal then
+  vim.opt.guicursor = 
+    "n-v-c:block," ..   -- Normal mode: block cursor
+    "i-ci-ve:ver25," ..  -- Insert mode: vertical bar
+    "r-cr-o:hor20"       -- Replace mode: horizontal bar
+end
+
+-- Cursor blinking (subtle, not too distracting)
+vim.opt.guicursor:append("a:blinkwait175-blinkon200-blinkoff150")
+
+-- Toggle cursor line command
+create_user_command_with_error_handling('ToggleCursor', function()
+  vim.o.cursorline = not vim.o.cursorline
+  print(vim.o.cursorline and "Cursor highlight enabled" or "Cursor highlight disabled")
+end, {})
+
+-- Autocommand to reset highlights when colorscheme changes
+vim.api.nvim_create_autocmd('ColorScheme', {
+  callback = setup_cursor_highlight
+})
+
+vim.api.nvim_set_hl(0, 'Visual', {
+  bg = basic_terminal and "#3a3a3a" or "#3a3a3a",
+  ctermbg = 237,  -- Higher contrast background for better visibility
+})
