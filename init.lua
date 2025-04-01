@@ -15,6 +15,149 @@ if not vim.loop.fs_stat(lazypath) then
 end
 vim.opt.rtp:prepend(lazypath)
 
+-- Add a notification system for better error/info messages
+local has_notify, notify_module = pcall(require, "notify")
+if not has_notify then
+  -- Create a simplified notify replacement if nvim-notify isn't available
+  notify_module = function(msg, level, opts)
+    opts = opts or {}
+    level = level or vim.log.levels.INFO
+    
+    -- Map log levels to symbols
+    local symbols = {
+      [vim.log.levels.ERROR] = "✘ ERROR",
+      [vim.log.levels.WARN] = "⚠ WARNING",
+      [vim.log.levels.INFO] = "ℹ INFO",
+      [vim.log.levels.DEBUG] = "🔧 DEBUG",
+      [vim.log.levels.TRACE] = "🔍 TRACE"
+    }
+    
+    -- Format the message with title if provided
+    local formatted_msg = msg
+    if opts.title then
+      formatted_msg = symbols[level] .. " " .. opts.title .. "\n" .. formatted_msg
+    else
+      formatted_msg = symbols[level] .. " " .. formatted_msg
+    end
+    
+    -- Display the message using Vim's echo system
+    if level == vim.log.levels.ERROR then
+      vim.cmd('echohl ErrorMsg')
+    elseif level == vim.log.levels.WARN then
+      vim.cmd('echohl WarningMsg')
+    else
+      vim.cmd('echohl None')
+    end
+    
+    -- Split message by newlines to properly display multiline
+    for _, line in ipairs(vim.split(formatted_msg, "\n")) do
+      if line ~= "" then
+        vim.cmd(string.format('echom "%s"', line:gsub('"', '\\"')))
+      end
+    end
+    vim.cmd('echohl None')
+  end
+end
+
+-- Make notify globally available
+vim.notify = notify_module
+
+-- Set up global error handler for Lua errors
+local original_notify = vim.notify
+vim.notify = function(msg, level, opts)
+  -- Special handling for Lua errors
+  if level == vim.log.levels.ERROR and type(msg) == "string" then
+    -- Check if this is a plugin error
+    if msg:match("Error executing Lua") or msg:match("attempt to call a nil value") then
+      -- Extract relevant parts of the error
+      local plugin_name = msg:match("share/nvim/lazy/([^/]+)")
+      local error_summary = msg:match("Error executing Lua callback: (.+)")
+      
+      if not error_summary then
+        error_summary = msg:match("attempt to call a nil value") or "Plugin error"
+      end
+      
+      -- Create a more user-friendly error message
+      local friendly_msg = "Plugin error"
+      if plugin_name then
+        friendly_msg = "Plugin '" .. plugin_name .. "' error: " .. (error_summary or "initialization failed")
+      end
+      
+      -- Add helpful suggestions
+      friendly_msg = friendly_msg .. "\n\nTry these steps:\n" ..
+                     "1. Update plugins with ':Lazy update'\n" ..
+                     "2. Check if plugin's required dependencies are installed\n" ..
+                     "3. Restart Neovim\n" ..
+                     "4. If problem persists, check if plugin has GitHub issues"
+      
+      -- Call the original notify function with the simplified message
+      return original_notify(friendly_msg, level, {
+        title = "Plugin Error Detected",
+        timeout = 10000, -- longer timeout for error messages
+      })
+    end
+  end
+  
+  -- For all other notifications, proceed normally
+  return original_notify(msg, level, opts)
+end
+
+-- Better command error handling
+-- Create a wrapper for vim.api.nvim_create_user_command that includes error handling
+local function create_user_command_with_error_handling(name, fn, opts)
+  opts = opts or {}
+  vim.api.nvim_create_user_command(name, function(command_opts)
+    -- Capture any errors from command execution
+    local status, result = pcall(function()
+      return fn(command_opts)
+    end)
+    
+    if not status then
+      -- Format the error message to be more user friendly
+      local error_msg = result
+      if type(error_msg) == "string" then
+        -- Clean up the error message
+        error_msg = error_msg:gsub("^Vim%(.-%):", "Error:")
+        error_msg = error_msg:gsub("E%d+:", "")
+        error_msg = error_msg:gsub("\n%s*stack traceback:.*", "")
+        error_msg = error_msg:gsub("%s+", " "):gsub("^%s+", "")
+      else
+        error_msg = "Unknown error occurred executing command: " .. name
+      end
+      
+      -- Use a nicer notification format for the error
+      vim.notify(error_msg, vim.log.levels.ERROR, {
+        title = "Command Error: " .. name,
+        icon = "⚠️",
+      })
+    end
+  end, opts)
+end
+
+-- Hook into command not found events for better error messages
+vim.api.nvim_create_autocmd("CmdlineLeave", {
+  callback = function()
+    local cmdline = vim.fn.getcmdline()
+    if vim.fn.getcmdtype() == ":" and vim.v.shell_error ~= 0 and cmdline:match("^%s*[a-zA-Z]") then
+      -- This is a potential command not found error
+      vim.schedule(function()
+        local errmsg = vim.v.errmsg
+        if errmsg:match("E492:") or errmsg:match("E492:") then
+          local cmd_name = cmdline:match("^%s*(%S+)")
+          if cmd_name then
+            -- Provide a nicer error message for unknown commands
+            vim.notify("Command not found: " .. cmd_name .. "\nCheck spelling or install the required plugin.", 
+                      vim.log.levels.ERROR, {
+                        title = "Unknown Command",
+                        icon = "❓",
+                      })
+          end
+        end
+      end)
+    end
+  end,
+})
+
 -- NOTE: Here is where you install your plugins.
 require('lazy').setup({
   -- NOTE: First, some plugins that don't require any configuration
@@ -64,6 +207,8 @@ require('lazy').setup({
       'hrsh7th/cmp-path',
       -- nvim-cmp source for buffer words
       'hrsh7th/cmp-buffer',
+      -- nvim-cmp source for vim's cmdline
+      'hrsh7th/cmp-cmdline',
     },
   },
 
@@ -71,6 +216,12 @@ require('lazy').setup({
     "zbirenbaum/copilot-cmp",
     config = function()
       require("copilot_cmp").setup()
+    end
+  },
+  {
+    'stevearc/aerial.nvim',
+    config = function()
+      require('aerial').setup()
     end
   },
 
@@ -178,10 +329,37 @@ vim.wo.signcolumn = 'yes'
 -- vim.o.updatetime = 250
 vim.o.timeoutlen = 1000
 
+-- Improve terminal resizing behavior
+vim.o.ttimeout = true
+vim.o.ttimeoutlen = 10
+vim.o.lazyredraw = false -- Disable lazyredraw to improve resizing performance
+
 -- Set completeopt to have a better completion experience
 vim.o.completeopt = 'menu,menuone,noselect'
 -- NOTE: You should make sure your terminal supports this
 vim.o.termguicolors = true
+
+-- Terminal handling for better resize behavior with iTerm2
+local term_augroup = vim.api.nvim_create_augroup("TerminalHandling", { clear = true })
+vim.api.nvim_create_autocmd({"VimResized"}, {
+  group = term_augroup,
+  callback = function()
+    -- Force full redraw on terminal resize
+    vim.cmd("redraw!")
+  end,
+})
+
+-- Fix terminal size issues
+vim.api.nvim_create_autocmd("TermOpen", {
+  group = term_augroup,
+  pattern = "*",
+  callback = function()
+    -- Disable line numbers and signcolumn in terminal buffers
+    vim.opt_local.number = false
+    vim.opt_local.relativenumber = false
+    vim.opt_local.signcolumn = "no"
+  end,
+})
 
 -- [[ Basic Keymaps ]]
 
@@ -202,11 +380,13 @@ vim.api.nvim_create_autocmd('TextYankPost', {
   group = highlight_group,
   pattern = '*',
 })
---
---
+
 -- Enable telescope fzf native, if installed
 pcall(require('telescope').load_extension, 'fzf')
---
+
+-- Load aerial extension for telescope if available
+pcall(require('telescope').load_extension, 'aerial')
+
 -- -- See `:help telescope.builtin` for more. Try to stick with official docs or vim internal help "ALMOST ALWAYS"
 
 -- [[ Configure Treesitter ]]
@@ -294,21 +474,17 @@ local on_attach = function(_, bufnr)
     vim.keymap.set('n', keys, func, { buffer = bufnr, desc = desc })
   end
 
+  -- Use standard Neovim LSP mappings
   nmap('<leader>rn', vim.lsp.buf.rename, '[R]e[n]ame')
   nmap('<leader>ca', vim.lsp.buf.code_action, '[C]ode [A]ction')
-
   nmap('gd', vim.lsp.buf.definition, '[G]oto [D]efinition')
   nmap('gr', require('telescope.builtin').lsp_references, '[G]oto [R]eferences')
   nmap('gI', vim.lsp.buf.implementation, '[G]oto [I]mplementation')
   nmap('<leader>D', vim.lsp.buf.type_definition, 'Type [D]efinition')
   nmap('<leader>ds', require('telescope.builtin').lsp_document_symbols, '[D]ocument [S]ymbols')
   nmap('<leader>ws', require('telescope.builtin').lsp_dynamic_workspace_symbols, '[W]orkspace [S]ymbols')
-
-  -- See `:help K` for why this keymap
   nmap('K', vim.lsp.buf.hover, 'Hover Documentation')
   nmap('<C-k>', vim.lsp.buf.signature_help, 'Signature Documentation')
-
-  -- Lesser used LSP functionality
   nmap('gD', vim.lsp.buf.declaration, '[G]oto [D]eclaration')
   nmap('<leader>wa', vim.lsp.buf.add_workspace_folder, '[W]orkspace [A]dd Folder')
   nmap('<leader>wr', vim.lsp.buf.remove_workspace_folder, '[W]orkspace [R]emove Folder')
@@ -379,27 +555,32 @@ local has_words_before = function()
 end
 
 -- Copilot configuration - simple setup that works with both modes
-require("copilot").setup({
-  suggestion = {
-    enabled = true,
-    auto_trigger = true,
-    debounce = 75,
-    keymap = {
-      accept = "<M-l>",
-      accept_word = "<M-w>",
-      accept_line = "<M-l>",
-      next = "<M-]>",
-      prev = "<M-[>",
-      dismiss = "<M-]>",
+local ok, copilot = pcall(require, "copilot")
+if ok then
+  copilot.setup({
+    suggestion = {
+      enabled = true,
+      auto_trigger = true,
+      debounce = 75,
+      keymap = {
+        accept = "<M-l>",
+        accept_word = "<M-w>",
+        accept_line = "<M-l>",
+        next = "<M-]>",
+        prev = "<M-[>",
+        dismiss = "<M-]>",
+      },
     },
-  },
-  panel = { enabled = false },
-  filetypes = {
-    python = true,
-    lua = true,
-    ["*"] = true,
-  },
-})
+    panel = { enabled = false },
+    filetypes = {
+      python = true,
+      lua = true,
+      ["*"] = true,
+    },
+  })
+else
+  vim.notify("Copilot plugin not found. Make sure it's installed properly.", vim.log.levels.WARN)
+end
 
 
 cmp.setup {
@@ -466,11 +647,66 @@ cmp.setup {
   }
 }
 
+-- Use buffer source for `/` and `?` (if you enabled `native_menu`, this won't work anymore).
+cmp.setup.cmdline({ '/', '?' }, {
+  mapping = cmp.mapping.preset.cmdline(),
+  sources = {
+    { name = 'buffer' }
+  }
+})
+
+-- Use cmdline & path source for ':' (if you enabled `native_menu`, this won't work anymore).
+cmp.setup.cmdline(':', {
+  completion = {
+    completeopt = 'menu,menuone,noinsert,noselect',
+    autocomplete = { cmp.TriggerEvent.TextChanged },
+  },
+  mapping = cmp.mapping.preset.cmdline({
+    ['<C-n>'] = cmp.mapping(function()
+      -- Directly use Vim's command history next functionality
+      vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes('<Down>', true, false, true), 'n', true)
+    end, { 'c' }),
+    ['<C-p>'] = cmp.mapping(function()
+      vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes('<Up>', true, false, true), 'n', true)
+    end, { 'c' }),
+    ['<CR>'] = cmp.mapping.confirm({ 
+      select = false, 
+      behavior = cmp.ConfirmBehavior.Replace 
+    }),
+    ['<C-y>'] = cmp.mapping.confirm({ 
+      select = true, 
+      behavior = cmp.ConfirmBehavior.Replace 
+    }),
+    ['<Tab>'] = cmp.mapping(function(fallback)
+      if cmp.visible() then
+        cmp.select_next_item()
+      else
+        fallback()
+      end
+    end),
+  }),
+  formatting = {
+    format = function(entry, vim_item)
+      vim_item.kind = ({
+        cmdline = "[Command]",
+        path = "[Path]",
+        buffer = "[Buffer]",
+      })[entry.source.name] or entry.source.name
+      return vim_item
+    end,
+  },
+  sources = cmp.config.sources({
+    { name = 'path', option = { trailing_slash = true } }
+  }, {
+    { name = 'cmdline', keyword_length = 1, max_item_count = 30 }
+  })
+})
+
 -- Create a state variable for the toggle
 vim.g.copilot_mode = "lsp" -- "lsp" or "copilot"
 
 -- Toggle function that completely disables LSP in Copilot mode
-vim.api.nvim_create_user_command('Pilott', function()
+create_user_command_with_error_handling('Pilott', function()
   if vim.g.copilot_mode == "lsp" then
     -- Switch to Copilot-only mode - NO LSP SOURCES
     vim.g.copilot_mode = "copilot"
@@ -486,9 +722,9 @@ vim.api.nvim_create_user_command('Pilott', function()
     }
     
     -- Make sure Copilot is enabled
-    vim.cmd("Copilot enable")
+    pcall(vim.cmd, "Copilot enable")
     
-    print("Copilot-only mode enabled (LSP suggestions disabled)")
+    vim.notify("Copilot-only mode enabled (LSP suggestions disabled)", vim.log.levels.INFO)
   else
     -- Switch back to LSP-first mode with all sources
     vim.g.copilot_mode = "lsp"
@@ -503,29 +739,40 @@ vim.api.nvim_create_user_command('Pilott', function()
       },
     }
     
-    print("LSP-first mode enabled (all completion sources active)")
+    vim.notify("LSP-first mode enabled (all completion sources active)", vim.log.levels.INFO)
   end
 end, {})
 
 -- Add debug commands to check completion sources and LSP status
-vim.api.nvim_create_user_command('CompletionSources', function()
-  print("Active completion sources:")
+create_user_command_with_error_handling('CompletionSources', function()
+  local sources = {}
+  table.insert(sources, "Active completion sources:")
   for _, source in ipairs(cmp.get_config().sources) do
-    print(string.format("- %s (priority: %s)", source.name, source.priority or "not set"))
+    table.insert(sources, string.format("- %s (priority: %s)", source.name, source.priority or "not set"))
   end
+  
+  vim.notify(table.concat(sources, "\n"), vim.log.levels.INFO, {
+    title = "Completion Sources"
+  })
 end, {})
 
 -- Debug command to check which LSPs are attached to current buffer
-vim.api.nvim_create_user_command('LspStatus', function()
+create_user_command_with_error_handling('LspStatus', function()
   local clients = vim.lsp.get_active_clients({ bufnr = 0 })
+  
+  local message = {}
   if #clients == 0 then
-    print("No LSP clients attached to this buffer.")
+    table.insert(message, "No LSP clients attached to this buffer.")
   else
-    print("LSP clients:")
+    table.insert(message, "LSP clients:")
     for _, client in ipairs(clients) do
-      print(string.format("- %s", client.name))
+      table.insert(message, string.format("- %s", client.name))
     end
   end
+  
+  vim.notify(table.concat(message, "\n"), vim.log.levels.INFO, {
+    title = "LSP Status"
+  })
 end, {})
 
 -- Function to set colorscheme
@@ -796,229 +1043,11 @@ function load_large_file_async(filename, chunk_size)
   })
 end
 
-
-local function python_symbols(opts)
-  opts = opts or {}
-  local bufnr = vim.api.nvim_get_current_buf()
-  
-  -- Only process Python files
-  local file_extension = vim.fn.expand('%:e')
-  if file_extension ~= 'py' and file_extension ~= 'pyc' then
-    return
-  end
-  
-  -- Get parser and tree
-  local parser = vim.treesitter.get_parser(bufnr, 'python')
-  local tree = parser:parse()[1]
-  local root = tree:root()
-  
-  -- Collect all symbols
-  local symbols = {}
-  
-  -- Simple query for basic symbols
-  local query = vim.treesitter.query.parse('python', [[
-    (class_definition name: (identifier) @class)
-    (function_definition name: (identifier) @function)
-    (decorator (identifier) @decorator)
-    (assignment left: (identifier) @variable)
-  ]])
-  
-  -- Get parent context
-  local function get_context(node)
-    local result = "Global"
-    local parent = node:parent()
-    while parent do
-      if parent:type() == "class_definition" then
-        for i = 0, parent:named_child_count() - 1 do
-          local child = parent:named_child(i)
-          if child:type() == "identifier" then
-            result = "Class: " .. vim.treesitter.get_node_text(child, bufnr)
-            break
-          end
-        end
-      end
-      parent = parent:parent()
-    end
-    return result
-  end
-  
-  -- Capture nodes
-  local start_row, _, end_row, _ = root:range()
-  for id, node in query:iter_captures(root, bufnr, start_row, end_row) do
-    local name = vim.treesitter.get_node_text(node, bufnr)
-    local row, col = node:start()
-    local type_name = query.captures[id]
-    local context = get_context(node)
-    
-    -- Add prefix to decorators
-    if type_name == "decorator" then
-      name = "@" .. name
-    end
-    
-    table.insert(symbols, {
-      name = name,
-      row = row,
-      col = col,
-      type = type_name,
-      context = context
-    })
-  end
-  
-  -- Sort symbols
-  table.sort(symbols, function(a, b)
-    if a.type ~= b.type then
-      if a.type == "class" then return true end
-      if b.type == "class" then return false end
-      if a.type == "decorator" then return true end
-      if b.type == "decorator" then return false end
-      if a.type == "function" then return true end
-      if b.type == "function" then return false end
-      return false
-    else
-      return a.row < b.row
-    end
-  end)
-  
-  -- Prepare display list
-  local display_symbols = {}
-  for _, symbol in ipairs(symbols) do
-    table.insert(display_symbols, {
-      value = symbol,
-      display = symbol.name .. " [" .. symbol.context .. "] (" .. symbol.type .. ")",
-      ordinal = symbol.name,
-      lnum = symbol.row + 1,
-      col = symbol.col + 1
-    })
-  end
-  
-  -- Display in Telescope
-  require('telescope.pickers').new(opts, {
-    prompt_title = 'Python Symbols',
-    finder = require('telescope.finders').new_table({
-      results = display_symbols,
-      entry_maker = function(entry)
-        return entry
-      end
-    }),
-    sorter = require('telescope.config').values.generic_sorter(opts),
-    attach_mappings = function(prompt_bufnr)
-      local actions = require('telescope.actions')
-      local action_state = require('telescope.actions.state')
-      
-      actions.select_default:replace(function()
-        local selection = action_state.get_selected_entry()
-        actions.close(prompt_bufnr)
-        vim.api.nvim_win_set_cursor(0, {selection.lnum, selection.col - 1})
-        vim.cmd("normal! zz")
-      end)
-      return true
-    end
-  }):find()
-end
-
-vim.api.nvim_create_user_command('PythonSymbols', function()
-  python_symbols()
-end, {})
-
-
-
-local function capture_python_node(node_type, innermost_only)
-  local bufnr = vim.api.nvim_get_current_buf()
-  
-  -- Only process Python files
-  local file_extension = vim.fn.expand('%:e')
-  if file_extension ~= 'py' and file_extension ~= 'pyc' then
-    vim.notify("Not a Python file", vim.log.levels.WARN)
-    return
-  end
-  
-  -- Get current cursor position
-  local cursor_row, cursor_col = unpack(vim.api.nvim_win_get_cursor(0))
-  cursor_row = cursor_row - 1 -- Convert to 0-indexed
-  
-  -- Get parser and tree
-  local parser = vim.treesitter.get_parser(bufnr, 'python')
-  local tree = parser:parse()[1]
-  local root = tree:root()
-  
-  -- Target node types
-  local target_type
-  if node_type == "class" then
-    target_type = "class_definition"
-  else
-    target_type = "function_definition"
-  end
-  
-  -- Find the smallest node at cursor position
-  local node_at_cursor = root:named_descendant_for_range(cursor_row, cursor_col, cursor_row, cursor_col)
-  if not node_at_cursor then
-    vim.notify("No node found at cursor position", vim.log.levels.WARN)
-    return
-  end
-  
-  -- Collect all nodes of the target type from cursor to root
-  local target_nodes = {}
-  local current_node = node_at_cursor
-  
-  while current_node do
-    if current_node:type() == target_type then
-      table.insert(target_nodes, current_node)
-    end
-    current_node = current_node:parent()
-  end
-  
-  if #target_nodes == 0 then
-    vim.notify("No " .. node_type .. " found at or containing cursor position", vim.log.levels.WARN)
-    return
-  end
-  
-  -- Select the appropriate node based on the innermost_only flag
-  local target_node
-  if innermost_only then
-    -- Take the innermost (first found from cursor)
-    target_node = target_nodes[1]
-  else
-    -- Take the outermost (last found going up to root)
-    target_node = target_nodes[#target_nodes]
-  end
-  
-  -- Get node range
-  local start_row, start_col, end_row, end_col = target_node:range()
-  
-  -- Convert to 1-indexed for Vim and select in visual mode
-  vim.api.nvim_win_set_cursor(0, {start_row + 1, start_col})
-  vim.cmd("normal! v")
-  vim.api.nvim_win_set_cursor(0, {end_row + 1, end_col})
-end
-
--- Register commands
-vim.api.nvim_create_user_command('PythonCaptureInnerFunction', function()
-  capture_python_node("function", true)
-end, {})
-
-vim.api.nvim_create_user_command('PythonCaptureInnerClass', function()
-  capture_python_node("class", true)
-end, {})
-
-vim.api.nvim_create_user_command('PythonCaptureOuterFunction', function()
-  capture_python_node("function", false)
-end, {})
-
-vim.api.nvim_create_user_command('PythonCaptureOuterClass', function()
-  capture_python_node("class", false)
-end, {})
-
--- Create key mappings for normal mode
-vim.api.nvim_set_keymap('n', '<leader>vif', ':PythonCaptureInnerFunction<CR>', { noremap = true, silent = true })
-vim.api.nvim_set_keymap('n', '<leader>vic', ':PythonCaptureInnerClass<CR>', { noremap = true, silent = true })
-vim.api.nvim_set_keymap('n', '<leader>vof', ':PythonCaptureOuterFunction<CR>', { noremap = true, silent = true })
-vim.api.nvim_set_keymap('n', '<leader>voc', ':PythonCaptureOuterClass<CR>', { noremap = true, silent = true })
-
 -- Extremely minimal terminal configuration
 -- No autocmds, no complex options, just basic commands that work
 
 -- Horizontal terminal
-vim.api.nvim_create_user_command('Termhorizontal', function(opts)
+create_user_command_with_error_handling('Termhorizontal', function(opts)
   local size = opts.args ~= "" and opts.args or "15"
   vim.cmd(size .. "split")
   vim.cmd("terminal")
@@ -1026,7 +1055,7 @@ vim.api.nvim_create_user_command('Termhorizontal', function(opts)
 end, {nargs = "?"})
 
 -- Vertical terminal
-vim.api.nvim_create_user_command('Termvertical', function(opts)
+create_user_command_with_error_handling('Termvertical', function(opts)
   local size = opts.args ~= "" and opts.args or "80"
   vim.cmd(size .. "vsplit")
   vim.cmd("terminal")
@@ -1034,14 +1063,14 @@ vim.api.nvim_create_user_command('Termvertical', function(opts)
 end, {nargs = "?"})
 
 -- Tab terminal
-vim.api.nvim_create_user_command('Termnew', function()
+create_user_command_with_error_handling('Termnew', function()
   vim.cmd("tabnew")
   vim.cmd("terminal")
   vim.cmd("startinsert")
 end, {})
 
 -- Floating terminal
-vim.api.nvim_create_user_command('Termfloat', function()
+create_user_command_with_error_handling('Termfloat', function()
   -- Calculate dimensions
   local width = math.floor(vim.o.columns * 0.8)
   local height = math.floor(vim.o.lines * 0.8)
@@ -1069,7 +1098,7 @@ vim.api.nvim_create_user_command('Termfloat', function()
 end, {})
 
 -- Alias Term to horizontal split
-vim.api.nvim_create_user_command('Term', function(opts)
+create_user_command_with_error_handling('Term', function(opts)
   vim.cmd("Termhorizontal " .. opts.args)
 end, {nargs = "?"})
 
@@ -1135,8 +1164,8 @@ require("oil").setup({
   watch_for_changes = false,
   -- Keymaps in oil buffer. Can be any value that `vim.keymap.set` accepts OR a table of keymap
   -- options with a `callback` (e.g. { callback = function() ... end, desc = "", mode = "n" })
-  -- Additionally, if it is a string that matches "actions.<name>",
-  -- it will use the mapping at require("oil.actions").<name>
+  -- Additionally, if it is a string that matches "actions.<n>",
+  -- it will use the mapping at require("oil.actions").<n>
   -- Set to `false` to remove a keymap
   -- See :help oil-actions for a list of all available actions
   keymaps = {
@@ -1283,13 +1312,11 @@ require("oil").setup({
   },
 })
 
-
-
 -- Store the diagnostic state (modern approach)
 
 -- Command to toggle both virtual text and sign column indicators
-vim.api.nvim_create_user_command('Togglediagnostics', function()
-  local virtual_text_enabled = false
+local virtual_text_enabled = false
+create_user_command_with_error_handling('Togglediagnostics', function()
   virtual_text_enabled = not virtual_text_enabled
   
   if virtual_text_enabled then
@@ -1356,8 +1383,6 @@ vim.api.nvim_create_user_command('Togglediagnostics', function()
   end
 end, {})
 
-
-
 -- Create an autocmd to disable diagnostics on startup
 vim.api.nvim_create_autocmd("VimEnter", {
   callback = function()
@@ -1365,9 +1390,11 @@ vim.api.nvim_create_autocmd("VimEnter", {
     vim.diagnostic.config({ virtual_text = false, signs = false })
     
     -- Clear any existing diagnostics
-    for _, namespace in ipairs(vim.diagnostic.get_namespaces()) do
-      vim.diagnostic.reset(namespace)
-    end
+    pcall(function()
+      for _, namespace in ipairs(vim.diagnostic.get_namespaces()) do
+        vim.diagnostic.reset(namespace)
+      end
+    end)
     
     -- Set our state variable to match
     virtual_text_enabled = false
@@ -1378,8 +1405,12 @@ vim.api.nvim_create_autocmd("VimEnter", {
     -- Check for git signs before hiding
     local gs_ok, gs = pcall(require, 'gitsigns')
     if gs_ok and gs.get_hunks then
-      local hunks = gs.get_hunks()
-      if hunks and #hunks > 0 then
+      -- More robust handling of get_hunks
+      local hunks_ok, hunks = pcall(function() 
+        return gs.get_hunks() 
+      end)
+      
+      if hunks_ok and hunks and type(hunks) == "table" and #hunks > 0 then
         hide_sign_column = false
       end
     end
@@ -1545,7 +1576,7 @@ function mapping_conflicts.display_conflicts()
 end
 
 -- Create a user command to run the function
-vim.api.nvim_create_user_command('FindMappingConflicts', function()
+create_user_command_with_error_handling('FindMappingConflicts', function()
   mapping_conflicts.display_conflicts()
 end, {
   desc = "Find conflicting key mappings in the same mode"
@@ -1580,7 +1611,7 @@ local function toggle_folding()
 end
 
 -- Optionally, create a user command to call the function
-vim.api.nvim_create_user_command('ToggleFolding', toggle_folding, {})
+create_user_command_with_error_handling('ToggleFolding', toggle_folding, {})
 
 -- Detect OS and configure clipboard
 local function setup_clipboard()
@@ -1613,3 +1644,13 @@ local function setup_clipboard()
   vim.opt.clipboard = "unnamedplus"
 end
 setup_clipboard()
+
+
+-- Override the symbols picker to disable it
+-- For telescope
+local status, telescope_builtin = pcall(require, "telescope.builtin")
+if status then
+  telescope_builtin.symbols = function()
+    vim.notify("Symbols picker is disabled", vim.log.levels.INFO)
+  end
+end
