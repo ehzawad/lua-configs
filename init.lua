@@ -250,7 +250,57 @@ require('lazy').setup({
 
   -- Detect tabstop and shiftwidth automatically
   'tpope/vim-sleuth',
-  'zbirenbaum/copilot.lua',
+  
+  -- Copilot.lua for API access (with suggestions disabled)
+  {
+    'zbirenbaum/copilot.lua',
+    config = function()
+      require("copilot").setup({
+        -- Disable all suggestions and features, but keep API access for CopilotChat
+        suggestion = { enabled = false },
+        panel = { enabled = false },
+        filetypes = {
+          -- Disabled for all filetypes
+          ["*"] = false,
+        }
+      })
+    end
+  },
+  
+  -- CopilotChat.nvim for chat functionality
+  {
+    "CopilotC-Nvim/CopilotChat.nvim",
+    dependencies = {
+      { "nvim-lua/plenary.nvim" }, -- Required for curl, log and async functions
+    },
+    build = "make tiktoken",
+    opts = {
+      -- Default configuration for CopilotChat
+      model = "claude-3.7-sonnet-thought",
+      model_fallbacks = {
+        "claude-3.7-sonnet-thought",
+        "claude-3.7-sonnet",
+      },
+      window = {
+        layout = "vertical", -- 'vertical' | 'horizontal' | 'float'
+        width = 0.5, -- Width of the chat window
+      },
+      prompts = {
+        Explain = {
+          prompt = "Explain what this code does in detail.",
+        },
+        Review = {
+          prompt = "Review the code and provide specific improvements.",
+        },
+        Tests = {
+          prompt = "Generate comprehensive unit tests for this code.",
+        },
+        Fix = {
+          prompt = "Identify and fix issues with this code.",
+        },
+      },
+    },
+  },
 
   -- NOTE: This is where your plugins related to LSP can be installed.
   --  The configuration is done below. Search for lspconfig to find it below.
@@ -298,12 +348,6 @@ require('lazy').setup({
     },
   },
 
-  {
-    "zbirenbaum/copilot-cmp",
-    config = function()
-      require("copilot_cmp").setup()
-    end
-  },
   {
     'stevearc/aerial.nvim',
     config = function()
@@ -637,11 +681,13 @@ end
 --  If you want to override the default filetypes that your language server will attach to you can
 --  define the property 'filetypes' to the map in question.
 local servers = {
-  -- clangd = {},
+  clangd = {},
   -- gopls = {},
   pyright = {},  -- Python LSP enabled
   -- rust_analyzer = {},
   -- tsserver = {},
+  -- Use typescript-language-server for Mason
+  ["typescript-language-server"] = {},
   -- html = { filetypes = { 'html', 'twig', 'hbs'} },
 
   lua_ls = {
@@ -684,35 +730,6 @@ local has_words_before = function()
   return col ~= 0 and vim.api.nvim_buf_get_text(0, line - 1, 0, line - 1, col, {})[1]:match("^%s*$") == nil
 end
 
--- Copilot configuration - simple setup that works with both modes
-local ok, copilot = pcall(require, "copilot")
-if ok then
-  copilot.setup({
-    suggestion = {
-      enabled = true,
-      auto_trigger = true,
-      debounce = 75,
-      keymap = {
-        accept = "<M-l>",
-        accept_word = "<M-w>",
-        accept_line = "<M-l>",
-        next = "<M-]>",
-        prev = "<M-[>",
-        dismiss = "<M-]>",
-      },
-    },
-    panel = { enabled = false },
-    filetypes = {
-      python = true,
-      lua = true,
-      ["*"] = true,
-    },
-  })
-else
-  vim.notify("Copilot plugin not found. Make sure it's installed properly.", vim.log.levels.WARN)
-end
-
-
 -- Initialize lspkind
 local lspkind = require('lspkind')
 
@@ -724,7 +741,7 @@ local symbol_map = basic_terminal and {
   Enum = "Enum", Keyword = "Keyword", Snippet = "Snippet", Color = "Color",
   File = "File", Reference = "Ref", Folder = "Folder", EnumMember = "EnumMem",
   Constant = "Const", Struct = "Struct", Event = "Event", Operator = "Op",
-  TypeParameter = "TypeParam", Copilot = "AI",
+  TypeParameter = "TypeParam"
 } or {
   Text = "󰉿",
   Method = "󰆧",
@@ -750,8 +767,7 @@ local symbol_map = basic_terminal and {
   Struct = "󰙅",
   Event = "",
   Operator = "󰆕",
-  TypeParameter = "",
-  Copilot = "",
+  TypeParameter = ""
 }
 
 cmp.setup {
@@ -788,12 +804,11 @@ cmp.setup {
       end
     end, { 'i', 's' }),
   },
-  -- Flat list of sources with explicit priorities
+  -- LSP-only sources, no Copilot
   sources = {
     { name = 'nvim_lsp', priority = 1000 },  
     { name = 'buffer', priority = 800, min_length = 4 },
     { name = 'path', priority = 700, min_length = 4 },
-    { name = 'copilot', priority = 100 },  -- Much lower priority for Copilot
   },
   formatting = {
     format = lspkind.cmp_format({
@@ -891,83 +906,6 @@ cmp.setup.cmdline(':', {
     { name = 'cmdline', keyword_length = 2, max_item_count = 30 }
   })
 })
-
--- Create a state variable for the toggle
-vim.g.copilot_mode = "lsp" -- "lsp" or "copilot"
-
--- Toggle function that completely disables LSP in Copilot mode
-create_user_command_with_error_handling('Pilott', function()
-  if vim.g.copilot_mode == "lsp" then
-    -- Switch to Copilot-only mode - NO LSP SOURCES
-    vim.g.copilot_mode = "copilot"
-    
-    -- Setup with ONLY Copilot and basic sources, NO LSP
-    cmp.setup {
-      sources = {
-        { name = 'copilot', priority = 1000 },
-        { name = 'buffer', priority = 300, min_length = 4 },
-        { name = 'path', priority = 250, min_length = 4 },
-      },
-      formatting = {
-        format = lspkind.cmp_format({
-          mode = 'symbol_text',
-          maxwidth = 50,
-          ellipsis_char = '...',
-          symbol_map = symbol_map
-        })
-      },
-      -- Keep other window and UI settings the same
-      window = {
-        completion = {
-          winhighlight = "Normal:Pmenu,FloatBorder:Pmenu,Search:None",
-          col_offset = -3,
-          side_padding = 0,
-        },
-        documentation = {
-          winhighlight = "Normal:Pmenu,FloatBorder:Pmenu,Search:None",
-        },
-      },
-    }
-    
-    -- Make sure Copilot is enabled
-    pcall(vim.cmd, "Copilot enable")
-    
-    vim.notify("Copilot-only mode enabled (LSP suggestions disabled)", vim.log.levels.INFO)
-  else
-    -- Switch back to LSP-first mode with all sources
-    vim.g.copilot_mode = "lsp"
-    
-    -- Setup with LSP having highest priority and all sources restored
-    cmp.setup {
-      sources = {
-        { name = 'nvim_lsp', priority = 1000 },
-        { name = 'buffer', priority = 800, min_length = 4 },
-        { name = 'path', priority = 700, min_length = 4 },
-        { name = 'copilot', priority = 100 },
-      },
-      formatting = {
-        format = lspkind.cmp_format({
-          mode = 'symbol_text',
-          maxwidth = 50,
-          ellipsis_char = '...',
-          symbol_map = symbol_map
-        })
-      },
-      window = {
-        completion = {
-          winhighlight = "Normal:Pmenu,FloatBorder:Pmenu,Search:None",
-          col_offset = -3,
-          side_padding = 0,
-        },
-        documentation = {
-          winhighlight = "Normal:Pmenu,FloatBorder:Pmenu,Search:None",
-        },
-      },
-    }
-    
-    vim.notify("LSP-first mode enabled (all completion sources active)", vim.log.levels.INFO)
-  end
-end, {})
 
 -- Add debug commands to check completion sources and LSP status
 create_user_command_with_error_handling('CompletionSources', function()
@@ -1662,7 +1600,6 @@ vim.keymap.set('n', '<leader>ff', builtin.find_files, { desc = 'Telescope find f
 vim.keymap.set('n', '<leader>fg', builtin.live_grep, { desc = 'Telescope live grep' })
 vim.keymap.set('n', '<leader>fb', builtin.buffers, { desc = 'Telescope buffers' })
 vim.keymap.set('n', '<leader>fh', builtin.help_tags, { desc = 'Telescope help tags' })
-
 
 -- Treesitter folding with Lua
 -- Later make a function to manage this, like wrap it inside a lua functions
