@@ -191,8 +191,7 @@ require('lazy').setup({
     ---@type oil.SetupOpts
     opts = {},
     -- Optional dependencies
-    dependencies = { { "echasnovski/mini.icons", opts = {} } },
-    -- dependencies = { "nvim-tree/nvim-web-devicons" }, -- use if you prefer nvim-web-devicons
+    dependencies = { "nvim-tree/nvim-web-devicons" },
     -- Lazy loading is not recommended because it is very tricky to make it work correctly in all situations.
     lazy = false,
   },
@@ -209,6 +208,8 @@ require('lazy').setup({
       'hrsh7th/cmp-buffer',
       -- nvim-cmp source for vim's cmdline
       'hrsh7th/cmp-cmdline',
+      -- Add lspkind for icons in completion menu
+      'onsails/lspkind.nvim',
     },
   },
 
@@ -221,7 +222,38 @@ require('lazy').setup({
   {
     'stevearc/aerial.nvim',
     config = function()
-      require('aerial').setup()
+      require('aerial').setup({
+        -- Enable icons for various kinds
+        icons = {
+          Array = "󰅪",
+          Boolean = "⊨",
+          Class = "󰌗",
+          Constant = "󰏿",
+          Constructor = "",
+          Enum = "",
+          EnumMember = "",
+          Event = "",
+          Field = "󰜢",
+          File = "󰈙",
+          Function = "󰊕",
+          Interface = "",
+          Key = "󰌋",
+          Method = "󰆧",
+          Module = "",
+          Namespace = "󰌗",
+          Null = "NULL",
+          Number = "#",
+          Object = "󰅩",
+          Operator = "󰆕",
+          Package = "󰏗",
+          Property = "󰜢",
+          String = "󰀬",
+          Struct = "󰙅",
+          TypeParameter = "󰊄",
+          Variable = "󰀫",
+        },
+        show_guides = true,
+      })
     end
   },
 
@@ -253,7 +285,7 @@ require('lazy').setup({
     -- See `:help lualine.txt`
     opts = {
       options = {
-        icons_enabled = false,
+        icons_enabled = true,
         -- theme = 'onedark',
         component_separators = '|',
         section_separators = '',
@@ -583,6 +615,9 @@ else
 end
 
 
+-- Initialize lspkind
+local lspkind = require('lspkind')
+
 cmp.setup {
   completion = {
     completeopt = 'menu,menuone,noselect',
@@ -624,6 +659,42 @@ cmp.setup {
     { name = 'path', priority = 700, min_length = 4 },
     { name = 'copilot', priority = 100 },  -- Much lower priority for Copilot
   },
+  formatting = {
+    format = lspkind.cmp_format({
+      mode = 'symbol_text',  -- show symbol and text annotations
+      maxwidth = 50,         -- prevent the popup from showing more than provided characters
+      ellipsis_char = '...', -- when popup menu exceed maxwidth, the truncated part would show ellipsis_char instead
+      -- Symbol customization
+      symbol_map = {
+        Text = "󰉿",
+        Method = "󰆧",
+        Function = "󰊕",
+        Constructor = "",
+        Field = "󰜢",
+        Variable = "󰀫",
+        Class = "󰠱",
+        Interface = "",
+        Module = "",
+        Property = "󰜢",
+        Unit = "󰑭",
+        Value = "󰎠",
+        Enum = "",
+        Keyword = "󰌋",
+        Snippet = "",
+        Color = "󰏘",
+        File = "󰈙",
+        Reference = "󰈇",
+        Folder = "󰉋",
+        EnumMember = "",
+        Constant = "󰏿",
+        Struct = "󰙅",
+        Event = "",
+        Operator = "󰆕",
+        TypeParameter = "",
+        Copilot = "",
+      }
+    })
+  },
   sorting = {
     -- Prioritize sources with higher priority values
     priority_weight = 2.0,  -- Double the priority weight for more aggressive sorting
@@ -644,7 +715,17 @@ cmp.setup {
   },
   view = {
     entries = "custom"  -- Use a custom view for better visibility of source
-  }
+  },
+  window = {
+    completion = {
+      winhighlight = "Normal:Pmenu,FloatBorder:Pmenu,Search:None",
+      col_offset = -3,
+      side_padding = 0,
+    },
+    documentation = {
+      winhighlight = "Normal:Pmenu,FloatBorder:Pmenu,Search:None",
+    },
+  },
 }
 
 -- Use buffer source for `/` and `?` (if you enabled `native_menu`, this won't work anymore).
@@ -718,7 +799,52 @@ create_user_command_with_error_handling('Pilott', function()
         { name = 'buffer', priority = 300, min_length = 4 },
         { name = 'path', priority = 250, min_length = 4 },
       },
-      -- Keep other settings the same
+      formatting = {
+        format = lspkind.cmp_format({
+          mode = 'symbol_text',
+          maxwidth = 50,
+          ellipsis_char = '...',
+          symbol_map = {
+            Text = "󰉿",
+            Method = "󰆧",
+            Function = "󰊕",
+            Constructor = "",
+            Field = "󰜢",
+            Variable = "󰀫",
+            Class = "󰠱",
+            Interface = "",
+            Module = "",
+            Property = "󰜢",
+            Unit = "󰑭",
+            Value = "󰎠",
+            Enum = "",
+            Keyword = "󰌋",
+            Snippet = "",
+            Color = "󰏘",
+            File = "󰈙",
+            Reference = "󰈇",
+            Folder = "󰉋",
+            EnumMember = "",
+            Constant = "󰏿",
+            Struct = "󰙅",
+            Event = "",
+            Operator = "󰆕",
+            TypeParameter = "",
+            Copilot = "",
+          }
+        })
+      },
+      -- Keep other window and UI settings the same
+      window = {
+        completion = {
+          winhighlight = "Normal:Pmenu,FloatBorder:Pmenu,Search:None",
+          col_offset = -3,
+          side_padding = 0,
+        },
+        documentation = {
+          winhighlight = "Normal:Pmenu,FloatBorder:Pmenu,Search:None",
+        },
+      },
     }
     
     -- Make sure Copilot is enabled
@@ -736,6 +862,51 @@ create_user_command_with_error_handling('Pilott', function()
         { name = 'buffer', priority = 800, min_length = 4 },
         { name = 'path', priority = 700, min_length = 4 },
         { name = 'copilot', priority = 100 },
+      },
+      formatting = {
+        format = lspkind.cmp_format({
+          mode = 'symbol_text',
+          maxwidth = 50,
+          ellipsis_char = '...',
+          symbol_map = {
+            Text = "󰉿",
+            Method = "󰆧",
+            Function = "󰊕",
+            Constructor = "",
+            Field = "󰜢",
+            Variable = "󰀫",
+            Class = "󰠱",
+            Interface = "",
+            Module = "",
+            Property = "󰜢",
+            Unit = "󰑭",
+            Value = "󰎠",
+            Enum = "",
+            Keyword = "󰌋",
+            Snippet = "",
+            Color = "󰏘",
+            File = "󰈙",
+            Reference = "󰈇",
+            Folder = "󰉋",
+            EnumMember = "",
+            Constant = "󰏿",
+            Struct = "󰙅",
+            Event = "",
+            Operator = "󰆕",
+            TypeParameter = "",
+            Copilot = "",
+          }
+        })
+      },
+      window = {
+        completion = {
+          winhighlight = "Normal:Pmenu,FloatBorder:Pmenu,Search:None",
+          col_offset = -3,
+          side_padding = 0,
+        },
+        documentation = {
+          winhighlight = "Normal:Pmenu,FloatBorder:Pmenu,Search:None",
+        },
       },
     }
     
