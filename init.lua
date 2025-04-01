@@ -684,10 +684,10 @@ local servers = {
   clangd = {},
   -- gopls = {},
   pyright = {},  -- Python LSP enabled
+  ts_ls = {},
   -- rust_analyzer = {},
   -- tsserver = {},
   -- Use typescript-language-server for Mason
-  ["typescript-language-server"] = {},
   -- html = { filetypes = { 'html', 'twig', 'hbs'} },
 
   lua_ls = {
@@ -1730,3 +1730,4 @@ vim.api.nvim_set_hl(0, 'Visual', {
   bg = basic_terminal and "#3a3a3a" or "#3a3a3a",
   ctermbg = 237,  -- Higher contrast background for better visibility
 })
+
