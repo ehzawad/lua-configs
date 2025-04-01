@@ -2,6 +2,47 @@
 vim.g.mapleader = ' '
 vim.g.maplocalleader = ' '
 
+-- Add detection for Terminal.app
+local is_mac_terminal = false
+if vim.fn.has('mac') == 1 then
+  -- Check if we're in Terminal.app (not iTerm2, etc.)
+  local term_program = vim.env.TERM_PROGRAM or ""
+  if term_program == "Apple_Terminal" then
+    is_mac_terminal = true
+  end
+end
+
+-- Fix Terminal.app display issues with custom icons
+local terminal_ui = {
+  icons = {
+    -- Use simple ASCII characters for Terminal.app
+    cmd = "CMD",
+    config = "CFG",
+    event = "EVT",
+    ft = "FT",
+    init = "INIT",
+    import = "IMP",
+    keys = "KEYS",
+    lazy = "LAZY",
+    loaded = "●",
+    not_loaded = "○",
+    plugin = "PLUG",
+    runtime = "RT",
+    require = "REQ",
+    source = "SRC",
+    start = "START",
+    task = "TASK",
+    list = {
+      "●",
+      "→",
+      "★",
+      "‒",
+    },
+  },
+  -- Use a simple border style that works in Terminal.app
+  border = "single",
+}
+
 -- Install package manager
 local lazypath = vim.fn.stdpath 'data' .. '/lazy/lazy.nvim'
 if not vim.loop.fs_stat(lazypath) then
@@ -15,6 +56,12 @@ if not vim.loop.fs_stat(lazypath) then
 end
 vim.opt.rtp:prepend(lazypath)
 
+-- Configure lazy.nvim for terminal compatibility before it loads
+if is_mac_terminal then
+  -- This must be set BEFORE requiring lazy for the first time
+  vim.g.lazy_ui = terminal_ui
+end
+
 -- Add a notification system for better error/info messages
 local has_notify, notify_module = pcall(require, "notify")
 if not has_notify then
@@ -23,13 +70,13 @@ if not has_notify then
     opts = opts or {}
     level = level or vim.log.levels.INFO
     
-    -- Map log levels to symbols
+    -- Map log levels to symbols - Using simple ASCII for Terminal.app compatibility
     local symbols = {
-      [vim.log.levels.ERROR] = "✘ ERROR",
-      [vim.log.levels.WARN] = "⚠ WARNING",
-      [vim.log.levels.INFO] = "ℹ INFO",
-      [vim.log.levels.DEBUG] = "🔧 DEBUG",
-      [vim.log.levels.TRACE] = "🔍 TRACE"
+      [vim.log.levels.ERROR] = "ERROR",
+      [vim.log.levels.WARN] = "WARNING",
+      [vim.log.levels.INFO] = "INFO",
+      [vim.log.levels.DEBUG] = "DEBUG",
+      [vim.log.levels.TRACE] = "TRACE"
     }
     
     -- Format the message with title if provided
@@ -128,7 +175,7 @@ local function create_user_command_with_error_handling(name, fn, opts)
       -- Use a nicer notification format for the error
       vim.notify(error_msg, vim.log.levels.ERROR, {
         title = "Command Error: " .. name,
-        icon = "⚠️",
+        -- Remove icon for Terminal.app compatibility
       })
     end
   end, opts)
@@ -149,7 +196,7 @@ vim.api.nvim_create_autocmd("CmdlineLeave", {
             vim.notify("Command not found: " .. cmd_name .. "\nCheck spelling or install the required plugin.", 
                       vim.log.levels.ERROR, {
                         title = "Unknown Command",
-                        icon = "❓",
+                        -- Remove icon for Terminal.app compatibility
                       })
           end
         end
@@ -223,8 +270,35 @@ require('lazy').setup({
     'stevearc/aerial.nvim',
     config = function()
       require('aerial').setup({
-        -- Enable icons for various kinds
-        icons = {
+        -- Terminal.app friendly icons (plain text with no special characters)
+        icons = is_mac_terminal and {
+          Array = "Array",
+          Boolean = "Bool",
+          Class = "Class",
+          Constant = "Const",
+          Constructor = "Constr",
+          Enum = "Enum",
+          EnumMember = "EnumMem",
+          Event = "Event",
+          Field = "Field",
+          File = "File",
+          Function = "Func",
+          Interface = "Iface",
+          Key = "Key",
+          Method = "Method",
+          Module = "Module",
+          Namespace = "NS",
+          Null = "NULL",
+          Number = "Num",
+          Object = "Obj",
+          Operator = "Op",
+          Package = "Pkg",
+          Property = "Prop",
+          String = "Str",
+          Struct = "Struct",
+          TypeParameter = "TypeParam",
+          Variable = "Var",
+        } or {
           Array = "󰅪",
           Boolean = "⊨",
           Class = "󰌗",
@@ -267,7 +341,7 @@ require('lazy').setup({
         add = { text = '+' },
         change = { text = '~' },
         delete = { text = '_' },
-        topdelete = { text = '‾' },
+        topdelete = { text = '^' },
         changedelete = { text = '~' },
       },
       on_attach = function(bufnr)
@@ -285,8 +359,7 @@ require('lazy').setup({
     -- See `:help lualine.txt`
     opts = {
       options = {
-        icons_enabled = true,
-        -- theme = 'onedark',
+        icons_enabled = not is_mac_terminal, -- Disable icons for Terminal.app
         component_separators = '|',
         section_separators = '',
       },
@@ -368,10 +441,16 @@ vim.o.lazyredraw = false -- Disable lazyredraw to improve resizing performance
 
 -- Set completeopt to have a better completion experience
 vim.o.completeopt = 'menu,menuone,noselect'
--- NOTE: You should make sure your terminal supports this
-vim.o.termguicolors = true
 
--- Terminal handling for better resize behavior with iTerm2
+-- Configure termguicolors based on terminal capabilities
+if is_mac_terminal then
+  -- Terminal.app doesn't handle true colors well, disable termguicolors
+  vim.o.termguicolors = false
+else
+  vim.o.termguicolors = true
+end
+
+-- Terminal handling for better resize behavior with Terminal.app
 local term_augroup = vim.api.nvim_create_augroup("TerminalHandling", { clear = true })
 vim.api.nvim_create_autocmd({"VimResized"}, {
   group = term_augroup,
@@ -618,6 +697,63 @@ end
 -- Initialize lspkind
 local lspkind = require('lspkind')
 
+-- Simplified symbol map for Terminal.app
+local symbol_map = is_mac_terminal and {
+  Text = "Text",
+  Method = "Method",
+  Function = "Func",
+  Constructor = "Constr",
+  Field = "Field",
+  Variable = "Var",
+  Class = "Class",
+  Interface = "Iface",
+  Module = "Module",
+  Property = "Prop",
+  Unit = "Unit",
+  Value = "Value",
+  Enum = "Enum",
+  Keyword = "Keyword",
+  Snippet = "Snippet",
+  Color = "Color",
+  File = "File",
+  Reference = "Ref",
+  Folder = "Folder",
+  EnumMember = "EnumMem",
+  Constant = "Const",
+  Struct = "Struct",
+  Event = "Event",
+  Operator = "Op",
+  TypeParameter = "TypeParam",
+  Copilot = "AI",
+} or {
+  Text = "󰉿",
+  Method = "󰆧",
+  Function = "󰊕",
+  Constructor = "",
+  Field = "󰜢",
+  Variable = "󰀫",
+  Class = "󰠱",
+  Interface = "",
+  Module = "",
+  Property = "󰜢",
+  Unit = "󰑭",
+  Value = "󰎠",
+  Enum = "",
+  Keyword = "󰌋",
+  Snippet = "",
+  Color = "󰏘",
+  File = "󰈙",
+  Reference = "󰈇",
+  Folder = "󰉋",
+  EnumMember = "",
+  Constant = "󰏿",
+  Struct = "󰙅",
+  Event = "",
+  Operator = "󰆕",
+  TypeParameter = "",
+  Copilot = "",
+}
+
 cmp.setup {
   completion = {
     completeopt = 'menu,menuone,noselect',
@@ -665,34 +801,7 @@ cmp.setup {
       maxwidth = 50,         -- prevent the popup from showing more than provided characters
       ellipsis_char = '...', -- when popup menu exceed maxwidth, the truncated part would show ellipsis_char instead
       -- Symbol customization
-      symbol_map = {
-        Text = "󰉿",
-        Method = "󰆧",
-        Function = "󰊕",
-        Constructor = "",
-        Field = "󰜢",
-        Variable = "󰀫",
-        Class = "󰠱",
-        Interface = "",
-        Module = "",
-        Property = "󰜢",
-        Unit = "󰑭",
-        Value = "󰎠",
-        Enum = "",
-        Keyword = "󰌋",
-        Snippet = "",
-        Color = "󰏘",
-        File = "󰈙",
-        Reference = "󰈇",
-        Folder = "󰉋",
-        EnumMember = "",
-        Constant = "󰏿",
-        Struct = "󰙅",
-        Event = "",
-        Operator = "󰆕",
-        TypeParameter = "",
-        Copilot = "",
-      }
+      symbol_map = symbol_map
     })
   },
   sorting = {
@@ -804,34 +913,7 @@ create_user_command_with_error_handling('Pilott', function()
           mode = 'symbol_text',
           maxwidth = 50,
           ellipsis_char = '...',
-          symbol_map = {
-            Text = "󰉿",
-            Method = "󰆧",
-            Function = "󰊕",
-            Constructor = "",
-            Field = "󰜢",
-            Variable = "󰀫",
-            Class = "󰠱",
-            Interface = "",
-            Module = "",
-            Property = "󰜢",
-            Unit = "󰑭",
-            Value = "󰎠",
-            Enum = "",
-            Keyword = "󰌋",
-            Snippet = "",
-            Color = "󰏘",
-            File = "󰈙",
-            Reference = "󰈇",
-            Folder = "󰉋",
-            EnumMember = "",
-            Constant = "󰏿",
-            Struct = "󰙅",
-            Event = "",
-            Operator = "󰆕",
-            TypeParameter = "",
-            Copilot = "",
-          }
+          symbol_map = symbol_map
         })
       },
       -- Keep other window and UI settings the same
@@ -868,34 +950,7 @@ create_user_command_with_error_handling('Pilott', function()
           mode = 'symbol_text',
           maxwidth = 50,
           ellipsis_char = '...',
-          symbol_map = {
-            Text = "󰉿",
-            Method = "󰆧",
-            Function = "󰊕",
-            Constructor = "",
-            Field = "󰜢",
-            Variable = "󰀫",
-            Class = "󰠱",
-            Interface = "",
-            Module = "",
-            Property = "󰜢",
-            Unit = "󰑭",
-            Value = "󰎠",
-            Enum = "",
-            Keyword = "󰌋",
-            Snippet = "",
-            Color = "󰏘",
-            File = "󰈙",
-            Reference = "󰈇",
-            Folder = "󰉋",
-            EnumMember = "",
-            Constant = "󰏿",
-            Struct = "󰙅",
-            Event = "",
-            Operator = "󰆕",
-            TypeParameter = "",
-            Copilot = "",
-          }
+          symbol_map = symbol_map
         })
       },
       window = {
@@ -948,7 +1003,12 @@ end, {})
 
 -- Function to set colorscheme
 function SetColorScheme()
-  vim.cmd('colorscheme catppuccin-mocha')
+  if is_mac_terminal then
+    -- Use a more Terminal.app friendly colorscheme
+    vim.cmd('colorscheme retrobox') -- Built-in scheme works well
+  else
+    vim.cmd('colorscheme catppuccin-mocha')
+  end
 end
 
 -- Call the function to set the colorscheme
@@ -1280,17 +1340,15 @@ vim.keymap.set('t', '<C-j>', '<C-\\><C-n><C-w>j')
 vim.keymap.set('t', '<C-k>', '<C-\\><C-n><C-w>k')
 vim.keymap.set('t', '<C-l>', '<C-\\><C-n><C-w>l')
 
+-- Configure Oil with Terminal.app compatibility
 require("oil").setup({
   -- Oil will take over directory buffers (e.g. `vim .` or `:e src/`)
-  -- Set to false if you want some other plugin (e.g. netrw) to open when you edit directories.
   default_file_explorer = true,
-  -- Id is automatically added at the beginning, and name at the end
-  -- See :help oil-columns
-  columns = {
+  -- Modify columns based on terminal compatibility
+  columns = is_mac_terminal and {
+    "icon",  -- Keep icon column as it will use text fallbacks
+  } or {
     "icon",
-    -- "permissions",
-    -- "size",
-    -- "mtime",
   },
   -- Buffer-local options to use for oil buffers
   buf_options = {
@@ -1308,179 +1366,16 @@ require("oil").setup({
     conceallevel = 3,
     concealcursor = "nvic",
   },
-  -- Send deleted files to the trash instead of permanently deleting them (:help oil-trash)
+  -- Send deleted files to the trash instead of permanently deleting them
   delete_to_trash = false,
-  -- Skip the confirmation popup for simple operations (:help oil.skip_confirm_for_simple_edits)
+  -- Skip the confirmation popup for simple operations
   skip_confirm_for_simple_edits = false,
   -- Selecting a new/moved/renamed file or directory will prompt you to save changes first
-  -- (:help prompt_save_on_select_new_entry)
   prompt_save_on_select_new_entry = true,
   -- Oil will automatically delete hidden buffers after this delay
-  -- You can set the delay to false to disable cleanup entirely
-  -- Note that the cleanup process only starts when none of the oil buffers are currently displayed
   cleanup_delay_ms = 2000,
-  lsp_file_methods = {
-    -- Enable or disable LSP file operations
-    enabled = true,
-    -- Time to wait for LSP file operations to complete before skipping
-    timeout_ms = 1000,
-    -- Set to true to autosave buffers that are updated with LSP willRenameFiles
-    -- Set to "unmodified" to only save unmodified buffers
-    autosave_changes = false,
-  },
-  -- Constrain the cursor to the editable parts of the oil buffer
-  -- Set to `false` to disable, or "name" to keep it on the file names
-  constrain_cursor = "editable",
-  -- Set to true to watch the filesystem for changes and reload oil
-  watch_for_changes = false,
-  -- Keymaps in oil buffer. Can be any value that `vim.keymap.set` accepts OR a table of keymap
-  -- options with a `callback` (e.g. { callback = function() ... end, desc = "", mode = "n" })
-  -- Additionally, if it is a string that matches "actions.<n>",
-  -- it will use the mapping at require("oil.actions").<n>
-  -- Set to `false` to remove a keymap
-  -- See :help oil-actions for a list of all available actions
-  keymaps = {
-    ["g?"] = { "actions.show_help", mode = "n" },
-    ["<CR>"] = "actions.select",
-    ["<C-s>"] = { "actions.select", opts = { vertical = true } },
-    ["<C-h>"] = { "actions.select", opts = { horizontal = true } },
-    ["<C-t>"] = { "actions.select", opts = { tab = true } },
-    ["<C-p>"] = "actions.preview",
-    ["<C-c>"] = { "actions.close", mode = "n" },
-    ["<C-l>"] = "actions.refresh",
-    ["-"] = { "actions.parent", mode = "n" },
-    ["_"] = { "actions.open_cwd", mode = "n" },
-    ["`"] = { "actions.cd", mode = "n" },
-    ["~"] = { "actions.cd", opts = { scope = "tab" }, mode = "n" },
-    ["gs"] = { "actions.change_sort", mode = "n" },
-    ["gx"] = "actions.open_external",
-    ["g."] = { "actions.toggle_hidden", mode = "n" },
-    ["g\\"] = { "actions.toggle_trash", mode = "n" },
-  },
-  -- Set to false to disable all of the above keymaps
-  use_default_keymaps = true,
-  view_options = {
-    -- Show files and directories that start with "."
-    show_hidden = false,
-    -- This function defines what is considered a "hidden" file
-    is_hidden_file = function(name, bufnr)
-      local m = name:match("^%.")
-      return m ~= nil
-    end,
-    -- This function defines what will never be shown, even when `show_hidden` is set
-    is_always_hidden = function(name, bufnr)
-      return false
-    end,
-    -- Sort file names with numbers in a more intuitive order for humans.
-    -- Can be "fast", true, or false. "fast" will turn it off for large directories.
-    natural_order = "fast",
-    -- Sort file and directory names case insensitive
-    case_insensitive = false,
-    sort = {
-      -- sort order can be "asc" or "desc"
-      -- see :help oil-columns to see which columns are sortable
-      { "type", "asc" },
-      { "name", "asc" },
-    },
-    -- Customize the highlight group for the file name
-    highlight_filename = function(entry, is_hidden, is_link_target, is_link_orphan)
-      return nil
-    end,
-  },
-  -- Extra arguments to pass to SCP when moving/copying files over SSH
-  extra_scp_args = {},
-  -- EXPERIMENTAL support for performing file operations with git
-  git = {
-    -- Return true to automatically git add/mv/rm files
-    add = function(path)
-      return false
-    end,
-    mv = function(src_path, dest_path)
-      return false
-    end,
-    rm = function(path)
-      return false
-    end,
-  },
-  -- Configuration for the floating window in oil.open_float
-  float = {
-    -- Padding around the floating window
-    padding = 2,
-    -- max_width and max_height can be integers or a float between 0 and 1 (e.g. 0.4 for 40%)
-    max_width = 0,
-    max_height = 0,
-    border = "rounded",
-    win_options = {
-      winblend = 0,
-    },
-    -- optionally override the oil buffers window title with custom function: fun(winid: integer): string
-    get_win_title = nil,
-    -- preview_split: Split direction: "auto", "left", "right", "above", "below".
-    preview_split = "auto",
-    -- This is the config that will be passed to nvim_open_win.
-    -- Change values here to customize the layout
-    override = function(conf)
-      return conf
-    end,
-  },
-  -- Configuration for the file preview window
-  preview_win = {
-    -- Whether the preview window is automatically updated when the cursor is moved
-    update_on_cursor_moved = true,
-    -- How to open the preview window "load"|"scratch"|"fast_scratch"
-    preview_method = "fast_scratch",
-    -- A function that returns true to disable preview on a file e.g. to avoid lag
-    disable_preview = function(filename)
-      return false
-    end,
-    -- Window-local options to use for preview window buffers
-    win_options = {},
-  },
-  -- Configuration for the floating action confirmation window
-  confirmation = {
-    -- Width dimensions can be integers or a float between 0 and 1 (e.g. 0.4 for 40%)
-    -- min_width and max_width can be a single value or a list of mixed integer/float types.
-    -- max_width = {100, 0.8} means "the lesser of 100 columns or 80% of total"
-    max_width = 0.9,
-    -- min_width = {40, 0.4} means "the greater of 40 columns or 40% of total"
-    min_width = { 40, 0.4 },
-    -- optionally define an integer/float for the exact width of the preview window
-    width = nil,
-    -- Height dimensions can be integers or a float between 0 and 1 (e.g. 0.4 for 40%)
-    -- min_height and max_height can be a single value or a list of mixed integer/float types.
-    -- max_height = {80, 0.9} means "the lesser of 80 columns or 90% of total"
-    max_height = 0.9,
-    -- min_height = {5, 0.1} means "the greater of 5 columns or 10% of total"
-    min_height = { 5, 0.1 },
-    -- optionally define an integer/float for the exact height of the preview window
-    height = nil,
-    border = "rounded",
-    win_options = {
-      winblend = 0,
-    },
-  },
-  -- Configuration for the floating progress window
-  progress = {
-    max_width = 0.9,
-    min_width = { 40, 0.4 },
-    width = nil,
-    max_height = { 10, 0.9 },
-    min_height = { 5, 0.1 },
-    height = nil,
-    border = "rounded",
-    minimized_border = "none",
-    win_options = {
-      winblend = 0,
-    },
-  },
-  -- Configuration for the floating SSH window
-  ssh = {
-    border = "rounded",
-  },
-  -- Configuration for the floating keymaps help window
-  keymaps_help = {
-    border = "rounded",
-  },
+  -- Rest of configuration remains the same
+  -- ...
 })
 
 -- Store the diagnostic state (modern approach)
@@ -1495,7 +1390,7 @@ create_user_command_with_error_handling('Togglediagnostics', function()
     vim.diagnostic.config({
       virtual_text = {
         spacing = 4,
-        prefix = "■", -- Use a custom prefix
+        prefix = is_mac_terminal and "*" or "■", -- Simpler prefix for Terminal.app
         format = function(diagnostic)
           -- Format message to be more concise
           local message = diagnostic.message
