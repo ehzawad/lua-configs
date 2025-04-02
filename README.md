@@ -11,3 +11,5 @@ git clone https://github.com/ehzawad/lua-configs ~/.config/nvim
 
 
 ## Make sure to have the system installed `brew install fd ripgrep` (rust stuff) and node and luarocks and iTerm2 and M key (Meta key) is working in iTerm2
+
+brew install rust luarocks
