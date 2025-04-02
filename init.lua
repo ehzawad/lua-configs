@@ -254,14 +254,22 @@ require('lazy').setup({
   {
     'Exafunction/codeium.vim',
     event = 'BufEnter',
-    config = function()
-      vim.g.codeium_no_map_tab = 1  -- Don't use Tab key
-      
-      -- Use keys that won't conflict with your navigation
-      vim.keymap.set('i', '<C-g>', function() return vim.fn['codeium#Accept']() end, { expr = true, silent = true })
-      vim.keymap.set('i', '<C-n>', function() return vim.fn['codeium#CycleCompletions'](1) end, { expr = true, silent = true })
-      vim.keymap.set('i', '<C-p>', function() return vim.fn['codeium#CycleCompletions'](-1) end, { expr = true, silent = true })
-      vim.keymap.set('i', '<C-\\>', function() return vim.fn['codeium#Clear']() end, { expr = true, silent = true })
+    -- I kept the default mapping of it
+    config = function ()
+      -- Clear current suggestion: codeium#Clear()         <C-]>
+      vim.keymap.set('i', '<C-]>', function() return vim.fn['codeium#Clear']() end, { expr = true, silent = true })
+      -- Next suggestion: codeium#CycleCompletions(1)         <M-]>
+      vim.keymap.set('i', '<M-]>', function() return vim.fn['codeium#CycleCompletions'](1) end, { expr = true, silent = true })
+      -- Previous suggestion: codeium#CycleCompletions(-1)      <M-[>
+      vim.keymap.set('i', '<M-[>', function() return vim.fn['codeium#CycleCompletions'](-1) end, { expr = true, silent = true })
+      -- Insert suggestion: codeium#Accept()                  <Tab>
+      vim.keymap.set('i', '<Tab>', function() return vim.fn['codeium#Accept']() end, { expr = true, silent = true })
+      -- Manually trigger suggestion: codeium#Complete()      <M-Bslash>
+      vim.keymap.set('i', '<M-Bslash>', function() return vim.fn['codeium#Complete']() end, { expr = true, silent = true })
+      -- Accept word from suggestion: codeium#AcceptNextWord()  <C-k>
+      vim.keymap.set('i', '<C-k>', function() return vim.fn['codeium#AcceptNextWord']() end, { expr = true, silent = true })
+      -- Accept line from suggestion: codeium#AcceptNextLine()  <C-l>
+      vim.keymap.set('i', '<C-l>', function() return vim.fn['codeium#AcceptNextLine']() end, { expr = true, silent = true })
     end
   },
   -- Copilot.lua for API access (with suggestions disabled)
@@ -802,14 +810,14 @@ cmp.setup {
       behavior = cmp.ConfirmBehavior.Replace,
       select = true,
     },
-    ['<Tab>'] = cmp.mapping(function(fallback)
+    ['<C-n>'] = cmp.mapping(function(fallback)
       if cmp.visible() and has_words_before() then
         cmp.select_next_item({ behavior = cmp.SelectBehavior.Select })
       else
         fallback()
       end
     end, { 'i', 's' }),
-    ['<S-Tab>'] = cmp.mapping(function(fallback)
+    ['<C-p>'] = cmp.mapping(function(fallback)
       if cmp.visible() then
         cmp.select_prev_item()
       else
@@ -1110,19 +1118,8 @@ inoremap <expr> <C-D> col('.')>strlen(getline('.'))?"\<Lt>C-D>":"\<Lt>Del>"
 " forward one character
 inoremap <expr> <C-F> col('.')>strlen(getline('.'))?"\<Lt>C-F>":"\<Lt>Right>"
 
-
-" common type-mistakes
-" prese space btw
-ab teh the
-
-
 " Highlight Matched Parenthesis
 hi MatchParen ctermbg=gray guibg=lightgray
-
-" Better JUMP upwards and downwards
-inoremap <C-k> <C-g>k
-" remember, I have remapped <C-j> VIM's default Behavior
-inoremap <C-j> <C-g>j
 
 nnoremap  Y "+Y
 nnoremap  y "+yy
