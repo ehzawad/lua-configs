@@ -251,6 +251,19 @@ require('lazy').setup({
   -- Detect tabstop and shiftwidth automatically
   'tpope/vim-sleuth',
   
+  {
+    'Exafunction/codeium.vim',
+    event = 'BufEnter',
+    config = function()
+      vim.g.codeium_no_map_tab = 1  -- Don't use Tab key
+      
+      -- Use keys that won't conflict with your navigation
+      vim.keymap.set('i', '<C-g>', function() return vim.fn['codeium#Accept']() end, { expr = true, silent = true })
+      vim.keymap.set('i', '<C-n>', function() return vim.fn['codeium#CycleCompletions'](1) end, { expr = true, silent = true })
+      vim.keymap.set('i', '<C-p>', function() return vim.fn['codeium#CycleCompletions'](-1) end, { expr = true, silent = true })
+      vim.keymap.set('i', '<C-\\>', function() return vim.fn['codeium#Clear']() end, { expr = true, silent = true })
+    end
+  },
   -- Copilot.lua for API access (with suggestions disabled)
   {
     'zbirenbaum/copilot.lua',
@@ -1731,3 +1744,28 @@ vim.api.nvim_set_hl(0, 'Visual', {
   ctermbg = 237,  -- Higher contrast background for better visibility
 })
 
+-- Add this to your init.lua
+create_user_command_with_error_handling('ClearBufferArtifacts', function()
+  -- Clear completion state
+  pcall(function() vim.fn['codeium#Clear']() end)
+  
+  -- Clear nvim-cmp state
+  pcall(function() require('cmp').close() end)
+  
+  -- Clear LSP hover windows
+  pcall(vim.lsp.buf.clear_references)
+  
+  -- Close all floating windows
+  for _, win in ipairs(vim.api.nvim_list_wins()) do
+    local config = vim.api.nvim_win_get_config(win)
+    if config.relative ~= "" then
+      vim.api.nvim_win_close(win, false)
+    end
+  end
+  
+  -- Force complete redraw
+  vim.cmd('mode')  -- Show and clear current mode
+  vim.cmd('redraw!')  -- Force a complete redraw
+  
+  print("Buffer artifacts cleared")
+end, {desc = "Clear completion artifacts from buffer"})
