@@ -256,19 +256,12 @@ require('lazy').setup({
     event = 'BufEnter',
     -- I kept the default mapping of it
     config = function ()
-      -- Clear current suggestion: codeium#Clear()         <C-]>
       vim.keymap.set('i', '<C-]>', function() return vim.fn['codeium#Clear']() end, { expr = true, silent = true })
-      -- Next suggestion: codeium#CycleCompletions(1)         <M-]>
       vim.keymap.set('i', '<M-]>', function() return vim.fn['codeium#CycleCompletions'](1) end, { expr = true, silent = true })
-      -- Previous suggestion: codeium#CycleCompletions(-1)      <M-[>
       vim.keymap.set('i', '<M-[>', function() return vim.fn['codeium#CycleCompletions'](-1) end, { expr = true, silent = true })
-      -- Insert suggestion: codeium#Accept()                  <Tab>
       vim.keymap.set('i', '<Tab>', function() return vim.fn['codeium#Accept']() end, { expr = true, silent = true })
-      -- Manually trigger suggestion: codeium#Complete()      <M-Bslash>
       vim.keymap.set('i', '<M-Bslash>', function() return vim.fn['codeium#Complete']() end, { expr = true, silent = true })
-      -- Accept word from suggestion: codeium#AcceptNextWord()  <C-k>
       vim.keymap.set('i', '<C-k>', function() return vim.fn['codeium#AcceptNextWord']() end, { expr = true, silent = true })
-      -- Accept line from suggestion: codeium#AcceptNextLine()  <C-l>
       vim.keymap.set('i', '<C-l>', function() return vim.fn['codeium#AcceptNextLine']() end, { expr = true, silent = true })
     end
   },
