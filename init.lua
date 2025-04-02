@@ -990,155 +990,6 @@ vim.api.nvim_create_autocmd({ "BufReadPost", "BufEnter" }, {
   end,
 })
 
-vim.cmd[[autocmd InsertEnter * :set tabstop=2 shiftwidth=2 expandtab]]
-
-vim.cmd([[
-" Speed up viewport scrolling
-nnoremap <C-e> 9<C-e>
-nnoremap <C-y> 9<C-y>
-
-" Magically build interim directories if necessary
-" thanks to  Author: Damian Conway
-function! AskQuit (msg, options, quit_option)
-  if confirm(a:msg, a:options) == a:quit_option
-    exit
-  endif
-endfunction
-
-function! EnsureDirExists ()
-  let required_dir = expand("%:h")
-  if !isdirectory(required_dir)
-    call AskQuit("Parent directory '" . required_dir . "' doesn't exist.",
-          \       "&Create it\nor &Quit?", 2)
-
-    try
-      call mkdir( required_dir, 'p' )
-    catch
-      call AskQuit("Can't create '" . required_dir . "'",
-            \            "&Quit\nor &Continue anyway?", 1)
-    endtry
-  endif
-endfunction
-
-augroup AutoMkdir
-  autocmd!
-  autocmd  BufNewFile  *  :call EnsureDirExists()
-augroup END
-
-
-" python class
-
-" " Damian Conway's  Blink function
-nnoremap <silent> n n:call HLNext(0.1)<cr>
-nnoremap <silent> N N:call HLNext(0.1)<cr>
-
-function! HLNext (blinktime)
-  let target_pat = '\c\%#'.@/
-  let ring = matchadd('ErrorMsg', target_pat, 101)
-  redraw
-  exec 'sleep ' . float2nr(a:blinktime * 2000) . 'm'
-  call matchdelete(ring)
-  redraw
-endfunction
-
-" make the command mode less annoying
-" Emacs(readline) binding is here
-" start of line
-cnoremap <C-A>     <Home>
-" back one character
-cnoremap <C-B>     <Left>
-" delete character under cursor
-cnoremap <C-D>     <Del>
-" end of line
-cnoremap <C-E>     <End>
-" forward one character
-cnoremap <C-F>     <Right>
-" recall newer command-line
-cnoremap <C-N>     <Down>
-" recall previous (older) command-line
-cnoremap <C-P>     <Up>
-
-" back one word
-inoremap <expr> <C-B> getline('.')=~'^\s*$'&&col('.')>strlen(getline('.'))?"0\<Lt>C-D>\<Lt>Esc>kJs":"\<Lt>Left>"
-" delete character under cursor
-inoremap <expr> <C-D> col('.')>strlen(getline('.'))?"\<Lt>C-D>":"\<Lt>Del>"
-" end of line
-" forward one character
-inoremap <expr> <C-F> col('.')>strlen(getline('.'))?"\<Lt>C-F>":"\<Lt>Right>"
-
-" Highlight Matched Parenthesis
-hi MatchParen ctermbg=gray guibg=lightgray
-
-nnoremap  Y "+Y
-nnoremap  y "+yy
-xnoremap  Y "+Y
-xnoremap  y "+y
-
-
-function! HighlightAllOfWord(...)
-  if exists("a:1")
-    au CursorMoved * silent! exe printf('match Search /\<%s\>/', expand('<cword>'))
-  endif
-  if a:0 < 1
-    match none /\<%s\>/
-  endif
-endfunction
-command! -nargs=? HighlightAllOfWord  call HighlightAllOfWord(<f-args>)
-
-vnoremap J :m '>+1<CR>gv=gv
-vnoremap K :m '<-2<CR>gv=gv
-
-
-" STEAL FROM reactJS creator MACVIM box
-function! s:VSplitIntoNextTab()
-  "there is only one window
-  if tabpagenr('$') == 1 && winnr('$') == 1
-    return
-  endif
-  "preparing new window
-  let l:tab_nr = tabpagenr('$')
-  let l:cur_buf = bufnr('%')
-  if tabpagenr() < tab_nr
-    close!
-    if l:tab_nr == tabpagenr('$')
-      tabnext
-    endif
-    vsp
-  else
-    close!
-    tabnew
-  endif
-  "opening current buffer in new window
-  exe "b".l:cur_buf
-endfunc
-
-
-function! s:VSplitIntoPrevTab()
-  "there is only one window
-  if tabpagenr('$') == 1 && winnr('$') == 1
-    return
-  endif
-  "preparing new window
-  let l:tab_nr = tabpagenr('$')
-  let l:cur_buf = bufnr('%')
-  if tabpagenr() != 1
-    close!
-    if l:tab_nr == tabpagenr('$')
-      tabprev
-    endif
-    vsp
-  else
-    close!
-    exe "0tabnew"
-  endif
-  "opening current buffer in new window
-  exe "b".l:cur_buf
-endfunc
-command! VSplitIntoPrevTab call s:VSplitIntoPrevTab()
-command! VSplitIntoNextTab call s:VSplitIntoNextTab()
-]])
-
-
 local vim = vim
 
 function load_large_file_async(filename, chunk_size)
@@ -1777,3 +1628,234 @@ end, { expr = true, silent = true })
 -- Preserve selection after undo/redo
 vim.keymap.set('x', 'u', '<Esc>ugv', { silent = true })
 vim.keymap.set('x', '<C-r>', '<Esc><C-r>gv', { silent = true })
+
+
+-- Refactored utilities in pure Lua
+-- Refactored utilities in pure Lua
+
+--------------------------------
+-- Tab settings on insert mode
+--------------------------------
+vim.api.nvim_create_autocmd("InsertEnter", {
+  pattern = "*",
+  callback = function()
+    vim.opt_local.tabstop = 2
+    vim.opt_local.shiftwidth = 2
+    vim.opt_local.expandtab = true
+  end
+})
+
+--------------------------------
+-- Speed up viewport scrolling
+--------------------------------
+vim.keymap.set('n', '<C-e>', '9<C-e>', { silent = true })
+vim.keymap.set('n', '<C-y>', '9<C-y>', { silent = true })
+
+--------------------------------
+-- Directory creation functions
+--------------------------------
+local function ask_quit(msg, options, quit_option)
+  if vim.fn.confirm(msg, options) == quit_option then
+    vim.cmd('exit')
+  end
+end
+
+local function ensure_dir_exists()
+  local required_dir = vim.fn.expand("%:h")
+  if vim.fn.isdirectory(required_dir) == 0 then
+    ask_quit("Parent directory '" .. required_dir .. "' doesn't exist.",
+             "&Create it\nor &Quit?", 2)
+    
+    local ok, err = pcall(function()
+      vim.fn.mkdir(required_dir, "p")
+    end)
+    
+    if not ok then
+      ask_quit("Can't create '" .. required_dir .. "'",
+               "&Quit\nor &Continue anyway?", 1)
+    end
+  end
+end
+
+vim.api.nvim_create_autocmd("BufNewFile", {
+  pattern = "*",
+  callback = ensure_dir_exists
+})
+
+--------------------------------
+-- Search highlight blink
+--------------------------------
+local function hl_next(blinktime)
+  local target_pat = '\\c\\%#' .. vim.fn.getreg('/')
+  local ring = vim.fn.matchadd('ErrorMsg', target_pat, 101)
+  vim.cmd('redraw')
+  vim.cmd('sleep ' .. math.floor(blinktime * 2000) .. 'm')
+  pcall(vim.fn.matchdelete, ring)
+  vim.cmd('redraw')
+end
+
+vim.keymap.set('n', 'n', function()
+  vim.cmd('normal! n')
+  hl_next(0.1)
+end, { silent = true })
+
+vim.keymap.set('n', 'N', function() 
+  vim.cmd('normal! N')
+  hl_next(0.1)
+end, { silent = true })
+
+--------------------------------
+-- Command mode Emacs-style shortcuts
+--------------------------------
+vim.keymap.set('c', '<C-a>', '<Home>', { silent = true })
+vim.keymap.set('c', '<C-b>', '<Left>', { silent = true })
+vim.keymap.set('c', '<C-d>', '<Del>', { silent = true })
+vim.keymap.set('c', '<C-e>', '<End>', { silent = true })
+vim.keymap.set('c', '<C-f>', '<Right>', { silent = true })
+vim.keymap.set('c', '<C-n>', '<Down>', { silent = true })
+vim.keymap.set('c', '<C-p>', '<Up>', { silent = true })
+
+--------------------------------
+-- Insert mode smart movement
+--------------------------------
+vim.keymap.set('i', '<C-b>', function()
+  local line = vim.api.nvim_get_current_line()
+  local col = vim.api.nvim_win_get_cursor(0)[2] + 1
+  
+  if line:match("^%s*$") and col > #line then
+    return "<C-o>0<C-d><Esc>kA"
+  else
+    return "<Left>"
+  end
+end, { expr = true, silent = true })
+
+vim.keymap.set('i', '<C-d>', function()
+  local col = vim.api.nvim_win_get_cursor(0)[2] + 1
+  local line = vim.api.nvim_get_current_line()
+  
+  if col > #line then
+    return "<C-d>"
+  else
+    return "<Del>"
+  end
+end, { expr = true, silent = true })
+
+vim.keymap.set('i', '<C-f>', function()
+  local col = vim.api.nvim_win_get_cursor(0)[2] + 1
+  local line = vim.api.nvim_get_current_line()
+  
+  if col > #line then
+    return "<C-f>"
+  else
+    return "<Right>"
+  end
+end, { expr = true, silent = true })
+
+--------------------------------
+-- Highlight parentheses
+--------------------------------
+vim.api.nvim_set_hl(0, 'MatchParen', { ctermbg = 'gray', bg = 'lightgray' })
+
+--------------------------------
+-- Clipboard mappings
+--------------------------------
+vim.keymap.set('n', 'Y', '"+Y', { silent = true })
+vim.keymap.set('n', 'y', '"+yy', { silent = true })
+vim.keymap.set('x', 'Y', '"+Y', { silent = true })
+vim.keymap.set('x', 'y', '"+y', { silent = true })
+
+--------------------------------
+-- Word highlight function
+--------------------------------
+local word_highlight_active = false
+
+local function highlight_all_of_word(word)
+  if word then
+    -- Enable highlighting with the given word
+    word_highlight_active = true
+    local pattern = [[\<]] .. vim.fn.expand('<cword>') .. [[\>]]
+    vim.fn.matchadd('Search', pattern)
+    
+    -- Create autocmd to update the highlight when cursor moves
+    vim.api.nvim_create_autocmd("CursorMoved", {
+      callback = function()
+        if word_highlight_active then
+          vim.fn.clearmatches()
+          local pattern = [[\<]] .. vim.fn.expand('<cword>') .. [[\>]]
+          vim.fn.matchadd('Search', pattern)
+        end
+      end
+    })
+  else
+    -- Disable highlighting
+    word_highlight_active = false
+    vim.fn.clearmatches()
+  end
+end
+
+vim.api.nvim_create_user_command('HighlightAllOfWord', function(opts)
+  if opts.args ~= "" then
+    highlight_all_of_word(opts.args)
+  else
+    highlight_all_of_word(nil)
+  end
+end, { nargs = '?' })
+
+--------------------------------
+-- Tab split functions
+--------------------------------
+local function vsplit_into_next_tab()
+  -- Check if there's only one window
+  if vim.fn.tabpagenr('$') == 1 and vim.fn.winnr('$') == 1 then
+    return
+  end
+  
+  -- Prepare new window
+  local tab_nr = vim.fn.tabpagenr('$')
+  local cur_buf = vim.fn.bufnr('%')
+  
+  if vim.fn.tabpagenr() < tab_nr then
+    vim.cmd('close!')
+    if tab_nr == vim.fn.tabpagenr('$') then
+      vim.cmd('tabnext')
+    end
+    vim.cmd('vsp')
+  else
+    vim.cmd('close!')
+    vim.cmd('tabnew')
+  end
+  
+  -- Open current buffer in new window
+  vim.cmd('b' .. cur_buf)
+end
+
+local function vsplit_into_prev_tab()
+  -- Check if there's only one window
+  if vim.fn.tabpagenr('$') == 1 and vim.fn.winnr('$') == 1 then
+    return
+  end
+  
+  -- Prepare new window
+  local tab_nr = vim.fn.tabpagenr('$')
+  local cur_buf = vim.fn.bufnr('%')
+  
+  if vim.fn.tabpagenr() ~= 1 then
+    vim.cmd('close!')
+    if tab_nr == vim.fn.tabpagenr('$') then
+      vim.cmd('tabprev')
+    end
+    vim.cmd('vsp')
+  else
+    vim.cmd('close!')
+    vim.cmd('0tabnew')
+  end
+  
+  -- Open current buffer in new window
+  vim.cmd('b' .. cur_buf)
+end
+
+vim.api.nvim_create_user_command('VSplitIntoPrevTab', vsplit_into_prev_tab, {})
+vim.api.nvim_create_user_command('VSplitIntoNextTab', vsplit_into_next_tab, {})
+
+-- Note: Visual mode move mappings (J and K) are already handled in the previous
+-- visual-mode-basic script, so they're not duplicated here.
