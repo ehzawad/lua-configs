@@ -992,62 +992,10 @@ vim.api.nvim_create_autocmd({ "BufReadPost", "BufEnter" }, {
 
 vim.cmd[[autocmd InsertEnter * :set tabstop=2 shiftwidth=2 expandtab]]
 
--- Shift text in visual mode1
-vim.cmd([[
-  let s:save_cpo = &cpo
-  set cpo&vim
-
-  let s:pv_active = 1
-
-  function! PV_On ()
-      let s:pv_active = 1
-  endfunction
-
-  function! PV_Off ()
-      let s:pv_active = 0
-  endfunction
-
-  function PV_Toggle ()
-      let s:pv_active = !s:pv_active
-  endfunction
-
-  " When shifting, retain selection over multiple shifts...
-  silent! xmap     <unique><silent><expr>  >  <SID>ShiftKeepingSelection(">")
-  silent! xmap     <unique><silent><expr>  <  <SID>ShiftKeepingSelection("<")
-
-  " Allow selection to persist through an undo...
-  silent! xnoremap <unique><silent>        u      <ESC>ugv
-  silent! xnoremap <unique><silent>        <C-R>  <ESC><C-R>gv
-
-  function! s:ShiftKeepingSelection(cmd)
-      set nosmartindent
-
-      " No-op if plugin not active, or tab expansions are off...
-      if !s:pv_active || !&expandtab
-          return a:cmd . ":set smartindent\<CR>"
-
-      " Visual and Visual Line modes...
-      elseif mode() =~ '[vV]'
-          return a:cmd . ":set smartindent\<CR>gv"
-
-      " Visual block mode...
-      else
-          " Work out the adjustment for the way we're shifting...
-          let b:_pv_shift_motion
-          \   = &shiftwidth . (a:cmd == '>' ?  "\<RIGHT>" : "\<LEFT>")
-
-          " Return instructions to implement the shift and reset selection...
-          return a:cmd . ":set smartindent\<CR>uM"
-      endif
-  endfunction
-
-  let &cpo = s:save_cpo
-]])
-
 vim.cmd([[
 " Speed up viewport scrolling
-nnoremap <C-e> 3<C-e>
-nnoremap <C-y> 3<C-y>
+nnoremap <C-e> 9<C-e>
+nnoremap <C-y> 9<C-y>
 
 " Magically build interim directories if necessary
 " thanks to  Author: Damian Conway
@@ -1766,3 +1714,66 @@ create_user_command_with_error_handling('ClearBufferArtifacts', function()
   
   print("Buffer artifacts cleared")
 end, {desc = "Clear completion artifacts from buffer"})
+
+-- Minimal Visual Mode Enhancements...move around text
+-- Simple, focused functionality with no extra configuration
+-- Minimal Visual Mode Enhancements
+-- Simple, focused functionality with no extra configuration
+
+-- Basic indent - works forever to the right, preserves selection
+vim.keymap.set('x', '>', '>gv', { silent = true })
+
+-- Basic outdent - stops at left boundary, preserves selection
+vim.keymap.set('x', '<', function()
+  -- Get the shiftwidth value (how many spaces per indent level)
+  local shiftwidth = vim.fn.shiftwidth()
+  local start_line = vim.fn.line("'<")
+  local end_line = vim.fn.line("'>")
+  
+  -- Check each line in selection
+  for line_num = start_line, end_line do
+    local line = vim.api.nvim_buf_get_lines(0, line_num-1, line_num, false)[1]
+    -- Skip empty lines
+    if line:match("%S") then
+      -- Find position of first non-whitespace character
+      local first_char_pos = line:find("%S")
+      -- If any line would be pushed past the wall by an outdent
+      if first_char_pos and first_char_pos <= shiftwidth then
+        -- We've hit the wall - can't outdent further
+        return 'gv'
+      end
+    end
+  end
+  
+  -- Safe to outdent
+  return '<gv'
+end, { expr = true, silent = true })
+
+-- Move selection down, stop at bottom
+vim.keymap.set('x', 'J', function()
+  -- Check if we're at the end of the buffer
+  local line_count = vim.api.nvim_buf_line_count(0)
+  local _, end_line = unpack(vim.fn.getpos("'>"))
+  
+  if end_line >= line_count then
+    return 'gv'
+  end
+  
+  return ":m '>+1<CR>gv"
+end, { expr = true, silent = true })
+
+-- Move selection up, stop at top
+vim.keymap.set('x', 'K', function()
+  -- Check if we're at the beginning of the buffer
+  local _, start_line = unpack(vim.fn.getpos("'<"))
+  
+  if start_line <= 1 then
+    return 'gv'
+  end
+  
+  return ":m '<-2<CR>gv"
+end, { expr = true, silent = true })
+
+-- Preserve selection after undo/redo
+vim.keymap.set('x', 'u', '<Esc>ugv', { silent = true })
+vim.keymap.set('x', '<C-r>', '<Esc><C-r>gv', { silent = true })
