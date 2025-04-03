@@ -805,6 +805,23 @@ cmp.setup {
     -- Prioritize sources with higher priority values
     priority_weight = 2.0,  -- Double the priority weight for more aggressive sorting
     comparators = {
+      function(entry1, entry2)
+        local kind_priority = {
+          [cmp.lsp.CompletionItemKind.Method]   = 1,
+          [cmp.lsp.CompletionItemKind.Function] = 2,
+          [cmp.lsp.CompletionItemKind.Property] = 3,
+          -- Add other kinds as needed with your desired priorities
+        }
+        local kind1 = kind_priority[entry1:get_kind()] or 100
+        local kind2 = kind_priority[entry2:get_kind()] or 100
+
+        if kind1 < kind2 then
+          return true
+        elseif kind1 > kind2 then
+          return false
+        end
+        -- Return nil to fall back to the next comparator when kinds are equal.
+      end,
       cmp.config.compare.priority,  -- Make priority the first comparator
       cmp.config.compare.score,
       cmp.config.compare.recently_used,
