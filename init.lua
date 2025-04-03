@@ -91,7 +91,6 @@ if not has_notify then
   notify_module = function(msg, level, opts)
     opts = opts or {}
     level = level or vim.log.levels.INFO
-    
     -- Map log levels to symbols
     local symbols = {
       [vim.log.levels.ERROR] = basic_terminal and "ERROR" or "✘ ERROR",
@@ -100,7 +99,6 @@ if not has_notify then
       [vim.log.levels.DEBUG] = basic_terminal and "DEBUG" or "🔧 DEBUG",
       [vim.log.levels.TRACE] = basic_terminal and "TRACE" or "🔍 TRACE"
     }
-    
     -- Format the message with title if provided
     local formatted_msg = msg
     if opts.title then
@@ -108,7 +106,6 @@ if not has_notify then
     else
       formatted_msg = symbols[level] .. " " .. formatted_msg
     end
-    
     -- Display the message using Vim's echo system
     if level == vim.log.levels.ERROR then
       vim.cmd('echohl ErrorMsg')
@@ -117,7 +114,6 @@ if not has_notify then
     else
       vim.cmd('echohl None')
     end
-    
     -- Split message by newlines to properly display multiline
     for _, line in ipairs(vim.split(formatted_msg, "\n")) do
       if line ~= "" then
@@ -157,24 +153,20 @@ vim.notify = function(msg, level, opts)
       -- Extract relevant parts of the error
       local plugin_name = msg:match("share/nvim/lazy/([^/]+)")
       local error_summary = msg:match("Error executing Lua callback: (.+)")
-      
       if not error_summary then
         error_summary = msg:match("attempt to call a nil value") or "Plugin error"
       end
-      
       -- Create a more user-friendly error message
       local friendly_msg = "Plugin error"
       if plugin_name then
         friendly_msg = "Plugin '" .. plugin_name .. "' error: " .. (error_summary or "initialization failed")
       end
-      
       -- Add helpful suggestions
       friendly_msg = friendly_msg .. "\n\nTry these steps:\n" ..
                      "1. Update plugins with ':Lazy update'\n" ..
                      "2. Check if plugin's required dependencies are installed\n" ..
                      "3. Restart Neovim\n" ..
                      "4. If problem persists, check if plugin has GitHub issues"
-      
       -- Call the original notify function with the simplified message
       return original_notify(friendly_msg, level, {
         title = "Plugin Error Detected",
@@ -182,7 +174,6 @@ vim.notify = function(msg, level, opts)
       })
     end
   end
-  
   -- For all other notifications, proceed normally
   return original_notify(msg, level, opts)
 end
@@ -196,7 +187,6 @@ local function create_user_command_with_error_handling(name, fn, opts)
     local status, result = pcall(function()
       return fn(command_opts)
     end)
-    
     if not status then
       -- Format the error message to be more user friendly
       local error_msg = result
@@ -209,7 +199,6 @@ local function create_user_command_with_error_handling(name, fn, opts)
       else
         error_msg = "Unknown error occurred executing command: " .. name
       end
-      
       -- Use a nicer notification format for the error
       vim.notify(error_msg, vim.log.levels.ERROR, {
         title = "Command Error: " .. name,
@@ -247,20 +236,18 @@ vim.api.nvim_create_autocmd("CmdlineLeave", {
 require('lazy').setup({
   -- NOTE: First, some plugins that don't require any configuration
   'tpope/vim-repeat',
-
   -- Detect tabstop and shiftwidth automatically
   'tpope/vim-sleuth',
-  
   {
     'Exafunction/codeium.vim',
     event = 'BufEnter',
     -- I kept the default mapping of it
     config = function ()
-      vim.keymap.set('i', '<C-]>', function() return vim.fn['codeium#Clear']() end, { expr = true, silent = true })
-      vim.keymap.set('i', '<M-]>', function() return vim.fn['codeium#CycleCompletions'](1) end, { expr = true, silent = true })
-      vim.keymap.set('i', '<M-[>', function() return vim.fn['codeium#CycleCompletions'](-1) end, { expr = true, silent = true })
+      -- <C-d> delete indent but we better do it in visual mode, so yep, no worries
+      vim.keymap.set('i', '<C-d>', function() return vim.fn['codeium#Clear']() end, { expr = true, silent = true })
+      vim.keymap.set('i', '<C-f>', function() return vim.fn['codeium#CycleCompletions'](1) end, { expr = true, silent = true })
+      vim.keymap.set('i', '<C-b>', function() return vim.fn['codeium#CycleCompletions'](-1) end, { expr = true, silent = true })
       vim.keymap.set('i', '<Tab>', function() return vim.fn['codeium#Accept']() end, { expr = true, silent = true })
-      vim.keymap.set('i', '<M-Bslash>', function() return vim.fn['codeium#Complete']() end, { expr = true, silent = true })
       vim.keymap.set('i', '<C-k>', function() return vim.fn['codeium#AcceptNextWord']() end, { expr = true, silent = true })
       vim.keymap.set('i', '<C-l>', function() return vim.fn['codeium#AcceptNextLine']() end, { expr = true, silent = true })
     end
@@ -280,7 +267,6 @@ require('lazy').setup({
       })
     end
   },
-  
   -- CopilotChat.nvim for chat functionality
   {
     "CopilotC-Nvim/CopilotChat.nvim",
@@ -792,31 +778,13 @@ cmp.setup {
   mapping = cmp.mapping.preset.insert {
     ['<C-n>'] = cmp.mapping.select_next_item(),
     ['<C-p>'] = cmp.mapping.select_prev_item(),
-    ['<C-b>'] = cmp.mapping.scroll_docs(-4),
-    ['<C-f>'] = cmp.mapping.scroll_docs(4),
-    
-    ['<C-e>'] = cmp.mapping.abort(),
-    -- No <C-y> mapping to preserve scrolling
-    
-    ['<C-Space>'] = cmp.mapping.complete {},
-    ['<CR>'] = cmp.mapping.confirm {
+    ['<S-Tab>'] = cmp.mapping.select_next_item(),
+    ['Esc'] = cmp.mapping.abort(),
+    -- Control accept...here CR for lsp accept...and Tab for codeiump accept
+    ['<CR>'] = cmp.mapping.confirm { 
       behavior = cmp.ConfirmBehavior.Replace,
-      select = true,
+      select = false,  -- Only select if explicitly navigated
     },
-    ['<C-n>'] = cmp.mapping(function(fallback)
-      if cmp.visible() and has_words_before() then
-        cmp.select_next_item({ behavior = cmp.SelectBehavior.Select })
-      else
-        fallback()
-      end
-    end, { 'i', 's' }),
-    ['<C-p>'] = cmp.mapping(function(fallback)
-      if cmp.visible() then
-        cmp.select_prev_item()
-      else
-        fallback()
-      end
-    end, { 'i', 's' }),
   },
   -- LSP-only sources, no Copilot
   sources = {
@@ -849,7 +817,7 @@ cmp.setup {
     },
   },
   experimental = {
-    ghost_text = false,  -- Disable ghost text to avoid conflicts
+    ghost_text = false,  -- Disable ghost text to avoid conflicts with codeium suggestions
   },
   view = {
     entries = "custom"  -- Use a custom view for better visibility of source
@@ -892,10 +860,6 @@ cmp.setup.cmdline(':', {
       select = false, 
       behavior = cmp.ConfirmBehavior.Replace 
     }),
-    ['<C-y>'] = cmp.mapping.confirm({ 
-      select = true, 
-      behavior = cmp.ConfirmBehavior.Replace 
-    }),
     ['<Tab>'] = cmp.mapping(function(fallback)
       if cmp.visible() then
         cmp.select_next_item()
@@ -928,7 +892,6 @@ create_user_command_with_error_handling('CompletionSources', function()
   for _, source in ipairs(cmp.get_config().sources) do
     table.insert(sources, string.format("- %s (priority: %s)", source.name, source.priority or "not set"))
   end
-  
   vim.notify(table.concat(sources, "\n"), vim.log.levels.INFO, {
     title = "Completion Sources"
   })
@@ -937,7 +900,6 @@ end, {})
 -- Debug command to check which LSPs are attached to current buffer
 create_user_command_with_error_handling('LspStatus', function()
   local clients = vim.lsp.get_active_clients({ bufnr = 0 })
-  
   local message = {}
   if #clients == 0 then
     table.insert(message, "No LSP clients attached to this buffer.")
@@ -947,7 +909,6 @@ create_user_command_with_error_handling('LspStatus', function()
       table.insert(message, string.format("- %s", client.name))
     end
   end
-  
   vim.notify(table.concat(message, "\n"), vim.log.levels.INFO, {
     title = "LSP Status"
   })
@@ -987,7 +948,6 @@ local vim = vim
 
 function load_large_file_async(filename, chunk_size)
   chunk_size = chunk_size or 8192  -- default chunk size
-  
   local cmd = string.format("dd if=%s bs=%d", filename, chunk_size)
 
   -- Handler for each chunk of data
@@ -1046,10 +1006,8 @@ create_user_command_with_error_handling('Termfloat', function()
   local height = math.floor(vim.o.lines * 0.8)
   local row = math.floor((vim.o.lines - height) / 2)
   local col = math.floor((vim.o.columns - width) / 2)
-  
   -- Create empty buffer
   local buf = vim.api.nvim_create_buf(false, true)
-  
   -- Create window
   local win_opts = {
     relative = "editor",
@@ -1061,7 +1019,6 @@ create_user_command_with_error_handling('Termfloat', function()
     border = "rounded"
   }
   local win = vim.api.nvim_open_win(buf, true, win_opts)
-  
   -- Open terminal in buffer
   vim.cmd("terminal")
   vim.cmd("startinsert")
@@ -1158,7 +1115,6 @@ create_user_command_with_error_handling('Togglediagnostics', function()
         },
       }
     })
-    
     -- Make sure sign column is visible
     vim.opt.signcolumn = "yes"
     print("Diagnostic indicators enabled (virtual text and sign column)")
@@ -1168,10 +1124,8 @@ create_user_command_with_error_handling('Togglediagnostics', function()
       virtual_text = false,
       signs = false  -- Disable diagnostic signs completely
     })
-    
     -- Check if we can hide the sign column (only if no other features need it)
     local hide_sign_column = true
-    
     -- Keep sign column if git signs or other features are active
     -- Use proper Lua syntax for accessing Vim functions
     if vim.fn.exists('*gitsigns#get_hunks') == 1 then
@@ -1181,18 +1135,15 @@ create_user_command_with_error_handling('Togglediagnostics', function()
         hide_sign_column = false
       end
     end
-    
     -- Try using the Lua API directly if available
     local gs_ok, gs = pcall(require, 'gitsigns')
     if gs_ok and gs.get_hunks and gs.get_hunks() then
       hide_sign_column = false
     end
-    
     -- Set sign column based on our decision
     if hide_sign_column then
       vim.opt.signcolumn = "no"
     end
-    
     print("Diagnostic indicators disabled (virtual text and sign column)")
   end
 end, {})
@@ -1202,20 +1153,16 @@ vim.api.nvim_create_autocmd("VimEnter", {
   callback = function()
     -- Disable virtual text
     vim.diagnostic.config({ virtual_text = false, signs = false })
-    
     -- Clear any existing diagnostics
     pcall(function()
       for _, namespace in ipairs(vim.diagnostic.get_namespaces()) do
         vim.diagnostic.reset(namespace)
       end
     end)
-    
     -- Set our state variable to match
     virtual_text_enabled = false
-    
     -- Hide sign column if it's safe to do so
     local hide_sign_column = true
-    
     -- Check for git signs before hiding
     local gs_ok, gs = pcall(require, 'gitsigns')
     if gs_ok and gs.get_hunks then
@@ -1223,12 +1170,10 @@ vim.api.nvim_create_autocmd("VimEnter", {
       local hunks_ok, hunks = pcall(function() 
         return gs.get_hunks() 
       end)
-      
       if hunks_ok and hunks and type(hunks) == "table" and #hunks > 0 then
         hide_sign_column = false
       end
     end
-    
     -- Only hide sign column if safe
     if hide_sign_column then
       vim.opt.signcolumn = "no"
@@ -1254,30 +1199,24 @@ function mapping_conflicts.find_same_mode_conflicts()
     s = "Select",
     t = "Terminal"
   }
-  
   local all_mappings = {}
   local conflicts = {}
-  
   -- Get all mappings for each mode
   for mode_char, mode_name in pairs(modes) do
     all_mappings[mode_char] = {}
-    
     -- Get mappings using vim.api
     local ok, mappings = pcall(vim.api.nvim_get_keymap, mode_char)
     if not ok then
       vim.notify("Error getting keymaps for mode " .. mode_name, vim.log.levels.ERROR)
       goto continue
     end
-    
     -- Process each mapping
     for _, map in ipairs(mappings) do
       local lhs = map.lhs  -- The key combination
-      
       -- Skip special keys like mouse actions if needed
       if string.match(lhs, "^<.*mouse") then
         goto skip_mapping
       end
-      
       local rhs = map.rhs or "[Lua function]"
       if map.callback ~= nil then
         rhs = "[Lua callback]"
@@ -1320,16 +1259,12 @@ function mapping_conflicts.find_same_mode_conflicts()
         end
         conflicts[mode_char][lhs] = all_mappings[mode_char][lhs]
       end
-      
       ::skip_mapping::
     end
-    
     ::continue::
   end
-  
   -- Format same-mode conflicts
   local results = {}
-  
   for mode_char, mode_conflicts in pairs(conflicts) do
     for lhs, details in pairs(mode_conflicts) do
       table.insert(results, {
@@ -1427,16 +1362,13 @@ create_user_command_with_error_handling('ToggleFolding', toggle_folding, {})
 -- Detect OS and configure clipboard
 local function setup_clipboard()
   local system = vim.loop.os_uname().sysname
-  
   if system == "Darwin" then
     -- macOS - native clipboard should work automatically
     vim.opt.clipboard = "unnamedplus"
     return
   end
-  
   -- For Linux, check if we're in SSH
   local is_ssh = (vim.env.SSH_TTY ~= nil or vim.env.SSH_CLIENT ~= nil or vim.env.SSH_CONNECTION ~= nil)
-  
   if is_ssh then
     -- Configure OSC52 for SSH sessions
     vim.g.clipboard = 'osc52'
@@ -1450,7 +1382,6 @@ local function setup_clipboard()
       vim.g.clipboard = 'osc52'
     end
   end
-  
   -- Use clipboard for all operations
   vim.opt.clipboard = "unnamedplus"
 end
@@ -1495,7 +1426,6 @@ local function setup_cursor_highlight()
     reverse = true,
     -- Avoid blinking in terminal to prevent potential display issues
   })
-  
   -- Improve visual selection highlighting for retrobox colorscheme
   vim.api.nvim_set_hl(0, 'Visual', {
     bg = basic_terminal and "#3a3a3a" or "#3a3a3a",
@@ -1537,13 +1467,10 @@ vim.api.nvim_set_hl(0, 'Visual', {
 create_user_command_with_error_handling('ClearBufferArtifacts', function()
   -- Clear completion state
   pcall(function() vim.fn['codeium#Clear']() end)
-  
   -- Clear nvim-cmp state
   pcall(function() require('cmp').close() end)
-  
   -- Clear LSP hover windows
   pcall(vim.lsp.buf.clear_references)
-  
   -- Close all floating windows
   for _, win in ipairs(vim.api.nvim_list_wins()) do
     local config = vim.api.nvim_win_get_config(win)
@@ -1551,11 +1478,9 @@ create_user_command_with_error_handling('ClearBufferArtifacts', function()
       vim.api.nvim_win_close(win, false)
     end
   end
-  
   -- Force complete redraw
   vim.cmd('mode')  -- Show and clear current mode
   vim.cmd('redraw!')  -- Force a complete redraw
-  
   print("Buffer artifacts cleared")
 end, {desc = "Clear completion artifacts from buffer"})
 
@@ -1573,7 +1498,6 @@ vim.keymap.set('x', '<', function()
   local shiftwidth = vim.fn.shiftwidth()
   local start_line = vim.fn.line("'<")
   local end_line = vim.fn.line("'>")
-  
   -- Check each line in selection
   for line_num = start_line, end_line do
     local line = vim.api.nvim_buf_get_lines(0, line_num-1, line_num, false)[1]
@@ -1588,7 +1512,6 @@ vim.keymap.set('x', '<', function()
       end
     end
   end
-  
   -- Safe to outdent
   return '<gv'
 end, { expr = true, silent = true })
@@ -1598,11 +1521,9 @@ vim.keymap.set('x', 'J', function()
   -- Check if we're at the end of the buffer
   local line_count = vim.api.nvim_buf_line_count(0)
   local _, end_line = unpack(vim.fn.getpos("'>"))
-  
   if end_line >= line_count then
     return 'gv'
   end
-  
   return ":m '>+1<CR>gv"
 end, { expr = true, silent = true })
 
@@ -1610,11 +1531,9 @@ end, { expr = true, silent = true })
 vim.keymap.set('x', 'K', function()
   -- Check if we're at the beginning of the buffer
   local _, start_line = unpack(vim.fn.getpos("'<"))
-  
   if start_line <= 1 then
     return 'gv'
   end
-  
   return ":m '<-2<CR>gv"
 end, { expr = true, silent = true })
 
@@ -1622,9 +1541,6 @@ end, { expr = true, silent = true })
 vim.keymap.set('x', 'u', '<Esc>ugv', { silent = true })
 vim.keymap.set('x', '<C-r>', '<Esc><C-r>gv', { silent = true })
 
-
--- Refactored utilities in pure Lua
--- Refactored utilities in pure Lua
 
 --------------------------------
 -- Tab settings on insert mode
@@ -1658,11 +1574,9 @@ local function ensure_dir_exists()
   if vim.fn.isdirectory(required_dir) == 0 then
     ask_quit("Parent directory '" .. required_dir .. "' doesn't exist.",
              "&Create it\nor &Quit?", 2)
-    
     local ok, err = pcall(function()
       vim.fn.mkdir(required_dir, "p")
     end)
-    
     if not ok then
       ask_quit("Can't create '" .. required_dir .. "'",
                "&Quit\nor &Continue anyway?", 1)
@@ -1732,7 +1646,6 @@ local function highlight_all_of_word(word)
     word_highlight_active = true
     local pattern = [[\<]] .. vim.fn.expand('<cword>') .. [[\>]]
     vim.fn.matchadd('Search', pattern)
-    
     -- Create autocmd to update the highlight when cursor moves
     vim.api.nvim_create_autocmd("CursorMoved", {
       callback = function()
@@ -1766,11 +1679,9 @@ local function vsplit_into_next_tab()
   if vim.fn.tabpagenr('$') == 1 and vim.fn.winnr('$') == 1 then
     return
   end
-  
   -- Prepare new window
   local tab_nr = vim.fn.tabpagenr('$')
   local cur_buf = vim.fn.bufnr('%')
-  
   if vim.fn.tabpagenr() < tab_nr then
     vim.cmd('close!')
     if tab_nr == vim.fn.tabpagenr('$') then
@@ -1781,7 +1692,6 @@ local function vsplit_into_next_tab()
     vim.cmd('close!')
     vim.cmd('tabnew')
   end
-  
   -- Open current buffer in new window
   vim.cmd('b' .. cur_buf)
 end
@@ -1791,11 +1701,9 @@ local function vsplit_into_prev_tab()
   if vim.fn.tabpagenr('$') == 1 and vim.fn.winnr('$') == 1 then
     return
   end
-  
   -- Prepare new window
   local tab_nr = vim.fn.tabpagenr('$')
   local cur_buf = vim.fn.bufnr('%')
-  
   if vim.fn.tabpagenr() ~= 1 then
     vim.cmd('close!')
     if tab_nr == vim.fn.tabpagenr('$') then
@@ -1806,13 +1714,9 @@ local function vsplit_into_prev_tab()
     vim.cmd('close!')
     vim.cmd('0tabnew')
   end
-  
   -- Open current buffer in new window
   vim.cmd('b' .. cur_buf)
 end
 
 vim.api.nvim_create_user_command('VSplitIntoPrevTab', vsplit_into_prev_tab, {})
 vim.api.nvim_create_user_command('VSplitIntoNextTab', vsplit_into_next_tab, {})
-
--- Note: Visual mode move mappings (J and K) are already handled in the previous
--- visual-mode-basic script, so they're not duplicated here.
