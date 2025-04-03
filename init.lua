@@ -662,7 +662,7 @@ local on_attach = function(_, bufnr)
   if lsp_signature_ok then
     lsp_signature.on_attach({
       bind = true,
-      handler_opts = { border = "none" },
+      handler_opts = { border = "rounded" },
     }, bufnr)
   end
   --
