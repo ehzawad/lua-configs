@@ -253,6 +253,23 @@ require('lazy').setup({
     end
   },
   -- Copilot.lua for API access (with suggestions disabled)
+
+  {
+    'ray-x/lsp_signature.nvim',
+    config = function()
+      require('lsp_signature').setup({
+        bind = true,                     -- mandatory for border config
+        handler_opts = {
+          border = "rounded",            -- use a rounded border for the floating window
+        },
+        floating_window = true,          -- enable the floating signature window
+        hint_enable = true,              -- enable inline hints for parameters
+        hi_parameter = "Search",         -- highlight the active parameter (change as you prefer)
+      })
+    end
+  },
+
+
   {
     'zbirenbaum/copilot.lua',
     config = function()
@@ -640,6 +657,15 @@ local on_attach = function(_, bufnr)
   --
   -- In this case, we create a function that lets us more easily define mappings specific
   -- for LSP related items. It sets the mode, buffer and description for us each time.
+    -- Attach lsp_signature for dynamic inline function parameter documentation.
+  local lsp_signature_ok, lsp_signature = pcall(require, "lsp_signature")
+  if lsp_signature_ok then
+    lsp_signature.on_attach({
+      bind = true,
+      handler_opts = { border = "rounded" },
+    }, bufnr)
+  end
+  --
   local nmap = function(keys, func, desc)
     if desc then
       desc = 'LSP: ' .. desc
