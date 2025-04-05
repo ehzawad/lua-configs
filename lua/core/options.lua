@@ -77,3 +77,8 @@ vim.cmd('set autoread')
 vim.cmd('au SwapExists * let v:swapchoice = "e"')
 
 -- NOTE: Colorscheme is now set in init.lua after plugins are loaded
+--
+-- Better terminal handling
+vim.opt.ttyfast = true
+vim.opt.t_ti = vim.api.nvim_replace_termcodes([[^[[?1049h]], true, true, true)
+vim.opt.t_te = vim.api.nvim_replace_termcodes([[^[[?1049l]], true, true, true)
