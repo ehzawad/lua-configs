@@ -16,12 +16,27 @@ vim.api.nvim_create_autocmd('TextYankPost', {
 })
 
 -- Terminal handling for better resize behavior with iTerm2
+-- Terminal handling for better resize behavior with proper insert mode preservation
+-- Terminal handling for better resize behavior with proper insert mode preservation
+-- Terminal handling for better resize behavior
+-- Terminal handling for better resize behavior
 local term_augroup = vim.api.nvim_create_augroup("TerminalHandling", { clear = true })
+
 vim.api.nvim_create_autocmd({"VimResized"}, {
   group = term_augroup,
   callback = function()
-    -- Force full redraw on terminal resize
+    -- Get current state
+    local mode = vim.api.nvim_get_mode().mode
+    local was_insert = (mode == 'i' or mode == 'ic')
+    
+    -- Just do a basic redraw
     vim.cmd("redraw!")
+    
+    -- If we were in insert mode, go back to it properly
+    if was_insert then
+      -- Use startinsert instead of feedkeys to avoid typing 'i'
+      vim.cmd("startinsert")
+    end
   end,
 })
 
@@ -176,3 +191,21 @@ vim.api.nvim_create_autocmd('ColorScheme', {
     vim.api.nvim_set_hl(0, 'MatchParen', { ctermbg = 'gray', bg = 'lightgray' })
   end
 })
+
+-- Add a command to manually fix terminal UI issues
+vim.api.nvim_create_user_command('FixTerminal', function()
+  -- Force full redraw
+  vim.cmd("redraw!")
+  
+  -- Close floating windows
+  for _, win_id in ipairs(vim.api.nvim_list_wins()) do
+    if vim.api.nvim_win_is_valid(win_id) then
+      local config = vim.api.nvim_win_get_config(win_id)
+      if config.relative ~= "" then
+        pcall(vim.api.nvim_win_close, win_id, false)
+      end
+    end
+  end
+  
+  vim.notify("Terminal UI fixed", vim.log.levels.INFO)
+end, {desc = "Fix terminal rendering issues"})
