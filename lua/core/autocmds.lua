@@ -15,11 +15,7 @@ vim.api.nvim_create_autocmd('TextYankPost', {
   pattern = '*',
 })
 
--- Terminal handling for better resize behavior with iTerm2
 -- Terminal handling for better resize behavior with proper insert mode preservation
--- Terminal handling for better resize behavior with proper insert mode preservation
--- Terminal handling for better resize behavior
--- Terminal handling for better resize behavior
 local term_augroup = vim.api.nvim_create_augroup("TerminalHandling", { clear = true })
 
 vim.api.nvim_create_autocmd({"VimResized"}, {
