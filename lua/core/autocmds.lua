@@ -25,12 +25,13 @@ vim.api.nvim_create_autocmd({"VimResized"}, {
     local mode = vim.api.nvim_get_mode().mode
     local was_insert = (mode == 'i' or mode == 'ic')
     
-    -- Just do a basic redraw
-    vim.cmd("redraw!")
+    -- Force a complete screen refresh
+    vim.cmd("mode")  -- This helps clear the command line
+    vim.cmd("silent! !clear")  -- Try to clear terminal output
+    vim.cmd("redraw!")  -- Force a complete redraw
     
     -- If we were in insert mode, go back to it properly
     if was_insert then
-      -- Use startinsert instead of feedkeys to avoid typing 'i'
       vim.cmd("startinsert")
     end
   end,
@@ -45,6 +46,16 @@ vim.api.nvim_create_autocmd("TermOpen", {
     vim.opt_local.number = false
     vim.opt_local.relativenumber = false
     vim.opt_local.signcolumn = "no"
+  end,
+})
+
+-- Clean up terminal state on exit
+vim.api.nvim_create_autocmd("VimLeave", {
+  group = term_augroup,
+  callback = function()
+    -- Clear screen on exit
+    vim.cmd("set t_ti= t_te=")
+    vim.cmd("silent! !clear")
   end,
 })
 
@@ -190,8 +201,10 @@ vim.api.nvim_create_autocmd('ColorScheme', {
 
 -- Add a command to manually fix terminal UI issues
 vim.api.nvim_create_user_command('FixTerminal', function()
-  -- Force full redraw
-  vim.cmd("redraw!")
+  -- Reset terminal state completely
+  vim.cmd("mode")  -- Clear command line
+  vim.cmd("silent! !clear")  -- Clear terminal
+  vim.cmd("redraw!")  -- Force redraw
   
   -- Close floating windows
   for _, win_id in ipairs(vim.api.nvim_list_wins()) do
@@ -202,6 +215,10 @@ vim.api.nvim_create_user_command('FixTerminal', function()
       end
     end
   end
+  
+  -- Reset terminal title
+  vim.opt.title = true
+  vim.opt.titlestring = "nvim - %t"
   
   vim.notify("Terminal UI fixed", vim.log.levels.INFO)
 end, {desc = "Fix terminal rendering issues"})
