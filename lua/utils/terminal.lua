@@ -6,11 +6,32 @@ local M = {}
 
 -- Detect if we're running in a basic terminal without advanced features
 function M.detect_basic_terminal()
-  local sysname = vim.loop.os_uname().sysname
+  -- DEBUG: Print the raw OS information
+  local raw_sysname = vim.loop.os_uname().sysname
+  -- print("Raw detected OS: " .. raw_sysname)
+
+  -- Fix for potential incorrect OS detection
+  local sysname = raw_sysname
+  
+  -- Check for macOS-specific indicators
+  if vim.fn.has("mac") == 1 or vim.fn.has("macunix") == 1 then
+    -- print("Mac detected via vim.fn.has")
+    sysname = "Darwin"
+  end
+  
+  -- Additional macOS check
+  if vim.fn.executable('sw_vers') == 1 then
+    -- print("Mac detected via sw_vers")
+    sysname = "Darwin"
+  end
+  
+  -- print("Final OS determination: " .. sysname)
   local is_basic = false
 
   if sysname == "Darwin" then
     local term_program = vim.env.TERM_PROGRAM or ""
+    -- print("macOS detected with TERM_PROGRAM: " .. term_program)
+    
     if term_program == "Apple_Terminal" then
       is_basic = true
     elseif term_program == "iTerm.app" then
@@ -24,10 +45,8 @@ function M.detect_basic_terminal()
     local xterm_version = vim.env.XTERM_VERSION or ""
     local colorterm = vim.env.COLORTERM or ""
     
-    -- Improved Linux terminal detection:
-    -- 1. Don't classify xterm-256color as basic
-    -- 2. Check for COLORTERM environment variable
-    -- 3. Treat GNOME Terminal (which typically has xterm-256color) as advanced
+    -- print("Linux detected with TERM: " .. term)
+    
     if term == "xterm" and not term:match("256color") and 
        term_program == "" and xterm_version == "" and colorterm == "" then
       is_basic = true
@@ -35,9 +54,11 @@ function M.detect_basic_terminal()
       is_basic = false
     end
   else
+    -- print("Other OS detected: " .. sysname)
     is_basic = false
   end
-
+  
+  -- print("Terminal detected as: " .. (is_basic and "BASIC" or "ADVANCED"))
   return is_basic
 end
 

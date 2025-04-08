@@ -8,11 +8,42 @@ local M = {}
 
 -- Set up lualine statusline
 function M.setup_lualine()
+  -- Detect OS for proper file format icons
+  local sysname = vim.loop.os_uname().sysname
+  local is_mac = sysname == "Darwin"
+
   require('lualine').setup({
     options = {
       icons_enabled = not basic_terminal,
       component_separators = '|',
       section_separators = '',
+    },
+    sections = {
+      lualine_a = {'mode'},
+      lualine_b = {'branch', 'diff', 'diagnostics'},
+      lualine_c = {'filename'},
+      lualine_x = {
+        -- Custom fileformat with OS-specific icons
+        {
+          'fileformat',
+          symbols = {
+            unix = 'unix',
+            dos = 'dos',
+          }
+        },
+        'encoding', 
+        'filetype'
+      },
+      lualine_y = {'progress'},
+      lualine_z = {'location'}
+    },
+    inactive_sections = {
+      lualine_a = {},
+      lualine_b = {},
+      lualine_c = {'filename'},
+      lualine_x = {'location'},
+      lualine_y = {},
+      lualine_z = {}
     },
   })
 end
