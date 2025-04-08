@@ -22,8 +22,14 @@ function M.detect_basic_terminal()
     local term = vim.env.TERM or ""
     local term_program = vim.env.TERM_PROGRAM or ""
     local xterm_version = vim.env.XTERM_VERSION or ""
-    -- If running in a basic xterm-like terminal (e.g. default Ubuntu GNOME Terminal)
-    if (term == "xterm" or term:match("^xterm%-")) and term_program == "" and xterm_version == "" then
+    local colorterm = vim.env.COLORTERM or ""
+    
+    -- Improved Linux terminal detection:
+    -- 1. Don't classify xterm-256color as basic
+    -- 2. Check for COLORTERM environment variable
+    -- 3. Treat GNOME Terminal (which typically has xterm-256color) as advanced
+    if term == "xterm" and not term:match("256color") and 
+       term_program == "" and xterm_version == "" and colorterm == "" then
       is_basic = true
     else
       is_basic = false
