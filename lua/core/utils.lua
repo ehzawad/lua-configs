@@ -521,21 +521,62 @@ M.setup_clipboard = function()
     vim.opt.clipboard = "unnamedplus"
     return
   end
+  
   -- For Linux, check if we're in SSH
   local is_ssh = (vim.env.SSH_TTY ~= nil or vim.env.SSH_CLIENT ~= nil or vim.env.SSH_CONNECTION ~= nil)
+  
+  -- Check if OSC52 is supported
+  local has_osc52 = vim.fn.has('clipboard_osc52') == 1
+  
   if is_ssh then
-    -- Configure OSC52 for SSH sessions
-    vim.g.clipboard = 'osc52'
+    if has_osc52 then
+      -- Configure OSC52 for SSH sessions if supported
+      vim.g.clipboard = {
+        name = 'osc52',
+        copy = {
+          ["+"] = require('vim.clipboard.osc52').copy('+'),
+          ["*"] = require('vim.clipboard.osc52').copy('*'),
+        },
+        paste = {
+          ["+"] = function() return { vim.fn.getreg('+') } end,
+          ["*"] = function() return { vim.fn.getreg('*') } end,
+        },
+      }
+    else
+      -- Fallback for SSH when OSC52 not supported
+      vim.g.clipboard = nil
+      -- Just use unnamed register without system clipboard integration
+      vim.opt.clipboard = ""
+      return
+    end
   else
     -- Check for X11 or Wayland
     if vim.env.DISPLAY or vim.env.WAYLAND_DISPLAY then
       -- GUI environment, let Neovim auto-detect (xclip, etc.)
       vim.g.clipboard = nil
     else
-      -- TTY environment, use OSC52
-      vim.g.clipboard = 'osc52'
+      -- TTY environment, use OSC52 if supported
+      if has_osc52 then
+        vim.g.clipboard = {
+          name = 'osc52',
+          copy = {
+            ["+"] = require('vim.clipboard.osc52').copy('+'),
+            ["*"] = require('vim.clipboard.osc52').copy('*'),
+          },
+          paste = {
+            ["+"] = function() return { vim.fn.getreg('+') } end,
+            ["*"] = function() return { vim.fn.getreg('*') } end,
+          },
+        }
+      else
+        -- Fallback when OSC52 not supported
+        vim.g.clipboard = nil
+        vim.opt.clipboard = ""
+        return
+      end
     end
   end
+  
   -- Use clipboard for all operations
   vim.opt.clipboard = "unnamedplus"
 end
