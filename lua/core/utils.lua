@@ -543,4 +543,22 @@ end
 -- Initialize clipboard
 M.setup_clipboard()
 
+-- Function to disable mouse in cmdline mode
+M.disable_mouse_in_cmdline = function()
+  vim.api.nvim_create_autocmd("CmdlineEnter", {
+    callback = function()
+      vim.o.mouse = ""
+    end,
+  })
+
+  vim.api.nvim_create_autocmd("CmdlineLeave", {
+    callback = function()
+      vim.o.mouse = "a"
+    end,
+  })
+end
+
+-- Initialize cmdline mouse control
+M.disable_mouse_in_cmdline()
+
 return M

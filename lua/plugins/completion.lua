@@ -144,12 +144,13 @@ local function setup_cmp()
 
   -- Use cmdline & path source for ':' (if you enabled `native_menu`, this won't work anymore).
   cmp.setup.cmdline(':', {
+    enabled = true,
     completion = {
       completeopt = 'menu,menuone,noinsert,noselect',
       -- Only trigger completion after 2 characters
       autocomplete = false,  -- Disable automatic triggering
     },
-    mapping = cmp.mapping.preset.cmdline({
+    mapping = {
       ['<C-n>'] = cmp.mapping(function()
         if vim.fn.getcmdline():len() >= 2 then
           cmp.complete()
@@ -179,7 +180,7 @@ local function setup_cmp()
         select = false, 
         behavior = cmp.ConfirmBehavior.Replace 
       }),
-    }),
+    },
     formatting = {
       format = function(entry, vim_item)
         vim_item.kind = ({
