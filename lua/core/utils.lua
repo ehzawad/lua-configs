@@ -516,14 +516,37 @@ register_custom_commands()
 -- Configure clipboard
 M.setup_clipboard = function()
   local system = vim.loop.os_uname().sysname
-  if system == "Darwin" then
-    -- macOS - native clipboard should work automatically
-    vim.opt.clipboard = "unnamedplus"
+  
+  -- Check if we're in an SSH session
+  local is_ssh = (vim.env.SSH_TTY ~= nil or vim.env.SSH_CLIENT ~= nil or vim.env.SSH_CONNECTION ~= nil)
+  
+  -- Handle macOS (Darwin) - more careful handling for both local and SSH
+  if system == "Darwin" and not is_ssh then
+    -- Local macOS - native clipboard via pbcopy/pbpaste
+    local has_pbcopy = vim.fn.executable('pbcopy') == 1
+    if has_pbcopy then
+      vim.g.clipboard = {
+        name = 'pbcopy',
+        copy = {
+          ['+'] = {'pbcopy'},
+          ['*'] = {'pbcopy'},
+        },
+        paste = {
+          ['+'] = {'pbpaste'},
+          ['*'] = {'pbpaste'},
+        },
+        cache_enabled = 1,
+      }
+      vim.opt.clipboard = "unnamedplus"
+    else
+      -- This shouldn't happen on macOS, but just in case
+      vim.g.clipboard = nil
+      vim.opt.clipboard = ""
+    end
     return
   end
   
-  -- For Linux, check if we're in SSH
-  local is_ssh = (vim.env.SSH_TTY ~= nil or vim.env.SSH_CLIENT ~= nil or vim.env.SSH_CONNECTION ~= nil)
+  -- We already checked is_ssh above, no need to redefine
   
   -- Detect what clipboard tools are available
   local has_xclip = vim.fn.executable('xclip') == 1
@@ -543,38 +566,149 @@ M.setup_clipboard = function()
   
   -- SSH session configuration
   if is_ssh then
-    -- First try OSC52 for SSH
-    if has_osc52 then
-      vim.g.clipboard = {
-        name = 'osc52',
-        copy = {
-          ["+"] = osc52_module.copy('+'),
-          ["*"] = osc52_module.copy('*'),
-        },
-        paste = {
-          ["+"] = function() return { vim.fn.getreg('+') } end,
-          ["*"] = function() return { vim.fn.getreg('*') } end,
-        },
-      }
-    -- Next try tmux if we're in a tmux session
-    elseif has_tmux then
-      vim.g.clipboard = {
-        name = 'tmux',
-        copy = {
-          ['+'] = {'tmux', 'load-buffer', '-'},
-          ['*'] = {'tmux', 'load-buffer', '-'},
-        },
-        paste = {
-          ['+'] = {'tmux', 'save-buffer', '-'},
-          ['*'] = {'tmux', 'save-buffer', '-'},
-        },
-        cache_enabled = 1,
-      }
+    -- First check for X11 or Wayland and use xclip/xsel if available
+    if vim.env.DISPLAY then
+      -- X11 environment, try xclip first, then xsel
+      if has_xclip then
+        vim.g.clipboard = {
+          name = 'xclip-ssh',
+          copy = {
+            ['+'] = {'xclip', '-selection', 'clipboard'},
+            ['*'] = {'xclip', '-selection', 'primary'},
+          },
+          paste = {
+            ['+'] = {'xclip', '-selection', 'clipboard', '-o'},
+            ['*'] = {'xclip', '-selection', 'primary', '-o'},
+          },
+          cache_enabled = 1,
+        }
+      elseif has_xsel then
+        vim.g.clipboard = {
+          name = 'xsel-ssh',
+          copy = {
+            ['+'] = {'xsel', '--nodetach', '-i', '-b'},
+            ['*'] = {'xsel', '--nodetach', '-i', '-p'},
+          },
+          paste = {
+            ['+'] = {'xsel', '-o', '-b'},
+            ['*'] = {'xsel', '-o', '-p'},
+          },
+          cache_enabled = 1,
+        }
+      -- Then try OSC52
+      elseif has_osc52 then
+        vim.g.clipboard = {
+          name = 'osc52',
+          copy = {
+            ["+"] = osc52_module.copy('+'),
+            ["*"] = osc52_module.copy('*'),
+          },
+          paste = {
+            ["+"] = function() return { vim.fn.getreg('+') } end,
+            ["*"] = function() return { vim.fn.getreg('*') } end,
+          },
+        }
+      -- Finally try tmux
+      elseif has_tmux then
+        vim.g.clipboard = {
+          name = 'tmux',
+          copy = {
+            ['+'] = {'tmux', 'load-buffer', '-'},
+            ['*'] = {'tmux', 'load-buffer', '-'},
+          },
+          paste = {
+            ['+'] = {'tmux', 'save-buffer', '-'},
+            ['*'] = {'tmux', 'save-buffer', '-'},
+          },
+          cache_enabled = 1,
+        }
+      else
+        -- No clipboard available, use basic registers
+        vim.g.clipboard = nil
+        vim.opt.clipboard = ""
+        return
+      end
+    elseif vim.env.WAYLAND_DISPLAY then
+      -- Wayland environment
+      if has_wl_copy then
+        vim.g.clipboard = {
+          name = 'wl-copy-ssh',
+          copy = {
+            ['+'] = {'wl-copy', '--type', 'text/plain'},
+            ['*'] = {'wl-copy', '--primary', '--type', 'text/plain'},
+          },
+          paste = {
+            ['+'] = {'wl-paste', '--no-newline'},
+            ['*'] = {'wl-paste', '--primary', '--no-newline'},
+          },
+          cache_enabled = 1,
+        }
+      -- Then try OSC52
+      elseif has_osc52 then
+        vim.g.clipboard = {
+          name = 'osc52',
+          copy = {
+            ["+"] = osc52_module.copy('+'),
+            ["*"] = osc52_module.copy('*'),
+          },
+          paste = {
+            ["+"] = function() return { vim.fn.getreg('+') } end,
+            ["*"] = function() return { vim.fn.getreg('*') } end,
+          },
+        }
+      -- Finally try tmux 
+      elseif has_tmux then
+        vim.g.clipboard = {
+          name = 'tmux',
+          copy = {
+            ['+'] = {'tmux', 'load-buffer', '-'},
+            ['*'] = {'tmux', 'load-buffer', '-'},
+          },
+          paste = {
+            ['+'] = {'tmux', 'save-buffer', '-'},
+            ['*'] = {'tmux', 'save-buffer', '-'},
+          },
+          cache_enabled = 1,
+        }
+      else
+        -- No clipboard available, use basic registers
+        vim.g.clipboard = nil
+        vim.opt.clipboard = ""
+        return
+      end
     else
-      -- No clipboard available in SSH, use basic registers
-      vim.g.clipboard = nil
-      vim.opt.clipboard = ""
-      return
+      -- No display or wayland - try OSC52 first, then tmux
+      if has_osc52 then
+        vim.g.clipboard = {
+          name = 'osc52',
+          copy = {
+            ["+"] = osc52_module.copy('+'),
+            ["*"] = osc52_module.copy('*'),
+          },
+          paste = {
+            ["+"] = function() return { vim.fn.getreg('+') } end,
+            ["*"] = function() return { vim.fn.getreg('*') } end,
+          },
+        }
+      elseif has_tmux then
+        vim.g.clipboard = {
+          name = 'tmux',
+          copy = {
+            ['+'] = {'tmux', 'load-buffer', '-'},
+            ['*'] = {'tmux', 'load-buffer', '-'},
+          },
+          paste = {
+            ['+'] = {'tmux', 'save-buffer', '-'},
+            ['*'] = {'tmux', 'save-buffer', '-'},
+          },
+          cache_enabled = 1,
+        }
+      else
+        -- No clipboard available, use basic registers
+        vim.g.clipboard = nil
+        vim.opt.clipboard = ""
+        return
+      end
     end
   else
     -- Local machine configuration
