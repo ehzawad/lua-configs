@@ -26,6 +26,8 @@ vim.o.undofile = true
 vim.o.ignorecase = true
 vim.o.smartcase = true
 
+vim.o.inccommand = "split"
+
 -- Keep signcolumn on by default
 vim.wo.signcolumn = 'yes'
 
@@ -76,4 +78,5 @@ vim.opt.guicursor:append("a:blinkwait175-blinkon200-blinkoff150")
 vim.cmd('set autoread')
 vim.cmd('au SwapExists * let v:swapchoice = "e"')
 
--- NOTE: Colorscheme is now set in init.lua after plugins are loaded
+-- Don't have `o` add a comment
+vim.opt.formatoptions:remove "o"

@@ -40,6 +40,7 @@ vim.defer_fn(function()
   vim.notify("Neovim configuration loaded successfully", vim.log.levels.INFO)
   
   -- Check how many plugins are loaded
+  -- This is useful for debugging
   local lazy_ok, lazy = pcall(require, "lazy.stats")
   if lazy_ok then
     local stats = lazy.stats()
