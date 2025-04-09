@@ -146,27 +146,39 @@ local function setup_cmp()
   cmp.setup.cmdline(':', {
     completion = {
       completeopt = 'menu,menuone,noinsert,noselect',
-      autocomplete = { cmp.TriggerEvent.TextChanged },
+      -- Only trigger completion after 2 characters
+      autocomplete = false,  -- Disable automatic triggering
     },
     mapping = cmp.mapping.preset.cmdline({
       ['<C-n>'] = cmp.mapping(function()
-        -- Directly use Vim's command history next functionality
-        vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes('<Down>', true, false, true), 'n', true)
+        if vim.fn.getcmdline():len() >= 2 then
+          cmp.complete()
+        else
+          vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes('<Down>', true, false, true), 'n', true)
+        end
       end, { 'c' }),
       ['<C-p>'] = cmp.mapping(function()
-        vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes('<Up>', true, false, true), 'n', true)
+        if vim.fn.getcmdline():len() >= 2 then
+          cmp.complete()
+        else
+          vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes('<Up>', true, false, true), 'n', true)
+        end
+      end, { 'c' }),
+      ['<Tab>'] = cmp.mapping(function()
+        if vim.fn.getcmdline():len() >= 2 then
+          if cmp.visible() then
+            cmp.select_next_item()
+          else
+            cmp.complete()
+          end
+        else
+          vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes('<Tab>', true, false, true), 'n', true)
+        end
       end, { 'c' }),
       ['<CR>'] = cmp.mapping.confirm({ 
         select = false, 
         behavior = cmp.ConfirmBehavior.Replace 
       }),
-      ['<Tab>'] = cmp.mapping(function(fallback)
-        if cmp.visible() then
-          cmp.select_next_item()
-        else
-          fallback()
-        end
-      end),
     }),
     formatting = {
       format = function(entry, vim_item)
@@ -181,8 +193,72 @@ local function setup_cmp()
     sources = cmp.config.sources({
       { name = 'path', option = { trailing_slash = true } }
     }, {
-      { name = 'cmdline', keyword_length = 1, max_item_count = 15 }
+      { name = 'cmdline', keyword_length = 2, max_item_count = 15 }
     })
+  })
+  
+  -- Add a custom auto-triggering mechanism to cmdline
+  vim.api.nvim_create_autocmd("CmdlineChanged", {
+    callback = function()
+      local cmdtype = vim.fn.getcmdtype()
+      if cmdtype == ":" then
+        local cmdline = vim.fn.getcmdline()
+        -- Only trigger completion after 2 characters
+        if cmdline:len() >= 2 and not cmp.visible() then
+          cmp.complete()
+        end
+      end
+    end
+  })
+end
+
+-- Force paste mappings to always override cmp
+local function setup_paste_overrides()
+  -- Explicitly map clipboard operations in command mode to bypass cmp
+  -- These will ensure paste operations always work even if cmp is active
+  
+  -- Helper function to execute a command with proper escaping
+  local function force_paste(paste_cmd)
+    return function()
+      -- Close any active completion window
+      local cmp_ok, cmp = pcall(require, "cmp")
+      if cmp_ok and cmp.visible() then
+        cmp.close()
+      end
+      
+      -- Execute the paste command
+      vim.api.nvim_feedkeys(
+        vim.api.nvim_replace_termcodes(paste_cmd, true, false, true),
+        'n', true
+      )
+    end
+  end
+  
+  -- Force mapping for common paste operations
+  vim.api.nvim_set_keymap('c', '<C-r>+', '', {
+    noremap = true,
+    callback = force_paste('<C-r>+')
+  })
+  
+  vim.api.nvim_set_keymap('c', '<C-r>"', '', {
+    noremap = true,
+    callback = force_paste('<C-r>"')
+  })
+  
+  vim.api.nvim_set_keymap('c', '<C-v>', '', {
+    noremap = true, 
+    callback = force_paste('<C-r>+')
+  })
+  
+  vim.api.nvim_set_keymap('c', '<C-S-v>', '', {
+    noremap = true,
+    callback = force_paste('<C-r>+')
+  })
+  
+  -- RightMouse is a common paste operation in GUI terminals
+  vim.api.nvim_set_keymap('c', '<RightMouse>', '', {
+    noremap = true,
+    callback = force_paste('<C-r>+')
   })
 end
 
@@ -199,7 +275,8 @@ vim.api.nvim_create_user_command('CompletionSources', function()
   })
 end, {})
 
--- Initialize completion
+-- Initialize completion and paste overrides
 setup_cmp()
+setup_paste_overrides()
 
 return {}
