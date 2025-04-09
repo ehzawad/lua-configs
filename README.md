@@ -7,6 +7,10 @@ A carefully organized, modular Neovim configuration with intelligent terminal de
 ```bash
 git clone https://github.com/ehzawad/lua-configs ~/.config/nvim
 ```
+```bash
+git clone git@github.com:ehzawad/lua-configs.git ~/.config/nvim
+```
+
 
 ## Dependencies
 
