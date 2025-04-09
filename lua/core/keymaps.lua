@@ -52,12 +52,6 @@ vim.keymap.set('c', '<C-f>', '<Right>', { silent = true })
 vim.keymap.set('c', '<C-n>', '<Down>', { silent = true })
 vim.keymap.set('c', '<C-p>', '<Up>', { silent = true })
 
--- Clipboard mappings
-vim.keymap.set('n', 'Y', '"+Y', { silent = true })
-vim.keymap.set('n', 'y', '"+yy', { silent = true })
-vim.keymap.set('x', 'Y', '"+Y', { silent = true })
-vim.keymap.set('x', 'y', '"+y', { silent = true })
-
 -- Speed up viewport scrolling
 vim.keymap.set('n', '<C-e>', '9<C-e>', { silent = true })
 vim.keymap.set('n', '<C-y>', '9<C-y>', { silent = true })
