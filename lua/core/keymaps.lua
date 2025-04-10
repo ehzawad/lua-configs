@@ -43,6 +43,13 @@ vim.keymap.set('n', 'N', function()
   hl_next(0.1)
 end, { silent = true })
 
+
+
+vim.keymap.set('n', 'Y', '"+Y', { silent = true })
+vim.keymap.set('n', 'y', '"+yy', { silent = true })
+vim.keymap.set('x', 'Y', '"+Y', { silent = true })
+vim.keymap.set('x', 'y', '"+y', { silent = true })
+
 -- Command mode Emacs-style shortcuts
 vim.keymap.set('c', '<C-a>', '<Home>', { silent = true })
 vim.keymap.set('c', '<C-b>', '<Left>', { silent = true })
