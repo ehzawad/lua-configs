@@ -83,40 +83,6 @@ vim.api.nvim_create_autocmd("CmdlineLeave", {
   end,
 })
 
--- Create an autocmd to disable diagnostics on startup
-vim.api.nvim_create_autocmd("VimEnter", {
-  callback = function()
-    -- Disable virtual text
-    vim.diagnostic.config({ virtual_text = false, signs = false })
-    -- Clear any existing diagnostics
-    pcall(function()
-      for _, namespace in ipairs(vim.diagnostic.get_namespaces()) do
-        vim.diagnostic.reset(namespace)
-      end
-    end)
-    -- Set our state variable to match
-    _G.virtual_text_enabled = false
-    -- Hide sign column if it's safe to do so
-    local hide_sign_column = true
-    -- Check for git signs before hiding
-    local gs_ok, gs = pcall(require, 'gitsigns')
-    if gs_ok and gs.get_hunks then
-      -- More robust handling of get_hunks
-      local hunks_ok, hunks = pcall(function() 
-        return gs.get_hunks() 
-      end)
-      if hunks_ok and hunks and type(hunks) == "table" and #hunks > 0 then
-        hide_sign_column = false
-      end
-    end
-    -- Only hide sign column if safe
-    if hide_sign_column then
-      vim.opt.signcolumn = "no"
-    end
-  end,
-  group = vim.api.nvim_create_augroup("DisableDiagnosticsOnStartup", { clear = true }),
-  desc = "Disable diagnostics when Neovim starts",
-})
 
 -- Restore cursor position
 vim.api.nvim_create_autocmd({ "BufReadPost", "BufEnter" }, {
